@@ -1,12 +1,13 @@
 import { BALL_R, GOAL_H, GOAL_HALF, clamp, easeOut, lerp } from "./constants";
-import { gaugePos } from "./physics";
 
 /* ------------------------------------------------------------------
-   Canvas 2D rendering: the pinhole projection, sprites, pitch/goal/
-   net, and the gauge HUD panel. Pure presentation - reads `g` but
-   never mutates game logic fields (it does own the `crowd` dot field
-   and the `W`/`H`/`f`/`horizon` viewport fields, which are rendering
-   state set by `resize`/`initCrowd` below).
+   Canvas 2D rendering: the pinhole projection, sprites, and pitch/
+   goal/net. The gauge HUD lives in the DOM below the canvas (see
+   MagicalKicks.jsx) so it never covers the kicker or ball. Pure
+   presentation - reads `g` but never mutates game logic fields (it
+   does own the `crowd` dot field and the `W`/`H`/`f`/`horizon`
+   viewport fields, which are rendering state set by `resize`/
+   `initCrowd` below).
 ------------------------------------------------------------------- */
 
 export const CAM = { x: 0, y: 8, z: -14 };
@@ -95,90 +96,6 @@ function drawPlayer(ctx, feet, s, o) {
   ctx.arc(0, -h * 0.88 - hr * 1.3, hr * 0.92, Math.PI, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-}
-
-function drawGauges(ctx, g) {
-  const W = g.W, H = g.H;
-  const pw = Math.min(430, W * 0.86);
-  const px = (W - pw) / 2;
-  const ph = 92;
-  const py = H - ph - 14;
-  ctx.fillStyle = "rgba(6,10,26,0.82)";
-  ctx.strokeStyle = "rgba(96,165,250,0.7)";
-  ctx.lineWidth = 1.5;
-  const rr = 10;
-  ctx.beginPath();
-  ctx.moveTo(px + rr, py);
-  ctx.arcTo(px + pw, py, px + pw, py + ph, rr);
-  ctx.arcTo(px + pw, py + ph, px, py + ph, rr);
-  ctx.arcTo(px, py + ph, px, py, rr);
-  ctx.arcTo(px, py, px + pw, py, rr);
-  ctx.fill();
-  ctx.stroke();
-
-  const mods = [
-    { key: "h", label: "1 · HEIGHT", active: g.phase === "aim1" },
-    { key: "d", label: "2 · DIRECTION", active: g.phase === "aim2" },
-    { key: "s", label: "3 · SWERVE", active: g.phase === "aim3" },
-  ];
-  const mw = pw / 3;
-  mods.forEach((m, i) => {
-    const mx = px + i * mw;
-    ctx.fillStyle = m.active ? "#93c5fd" : "rgba(148,163,184,0.8)";
-    ctx.font = `700 11px 'Space Grotesk', ui-sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText(m.label, mx + mw / 2, py + 20);
-    // bar
-    const bw = mw - 46;
-    const bx = mx + 23;
-    const by = py + 38;
-    const bh = 14;
-    ctx.fillStyle = "rgba(30,41,59,0.9)";
-    ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeStyle = "rgba(148,163,184,0.5)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(bx, by, bw, bh);
-    // centre notch for aim/curl
-    if (m.key !== "h") {
-      ctx.fillStyle = "rgba(148,163,184,0.6)";
-      ctx.fillRect(bx + bw / 2 - 1, by - 3, 2, bh + 6);
-    }
-    // gradient hint
-    if (m.key === "h") {
-      const gr = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-      gr.addColorStop(0, "rgba(34,197,94,0.35)");
-      gr.addColorStop(1, "rgba(239,68,68,0.35)");
-      ctx.fillStyle = gr;
-      ctx.fillRect(bx, by, bw, bh);
-    }
-    // marker value
-    let v = null;
-    if (m.active) {
-      v = gaugePos(g, m.key); // 0..1 for position, regardless of key
-    } else if (g.locked[m.key] != null) {
-      v = m.key === "h" ? g.locked[m.key] : (g.locked[m.key] + 1) / 2;
-    }
-    if (v != null) {
-      const mxp = bx + v * bw;
-      ctx.fillStyle = m.active ? "#fbbf24" : "#60a5fa";
-      ctx.fillRect(mxp - 2.5, by - 5, 5, bh + 10);
-    }
-    // sublabels
-    ctx.font = `600 9px 'Space Grotesk', ui-sans-serif`;
-    ctx.fillStyle = "rgba(148,163,184,0.75)";
-    if (m.key === "h") {
-      ctx.textAlign = "left";
-      ctx.fillText("LOW", bx, by + bh + 14);
-      ctx.textAlign = "right";
-      ctx.fillText("HIGH", bx + bw, by + bh + 14);
-    } else {
-      ctx.textAlign = "left";
-      ctx.fillText("◀", bx, by + bh + 14);
-      ctx.textAlign = "right";
-      ctx.fillText("▶", bx + bw, by + bh + 14);
-    }
-  });
-  ctx.textAlign = "left";
 }
 
 export function drawScene(ctx, g) {
@@ -462,9 +379,4 @@ export function drawScene(ctx, g) {
     sock: "#1d4ed8",
     angle: runP === 1 ? -0.28 : runP > 0 ? -0.12 : 0,
   });
-
-  /* ---- gauge panel (the signature lower-third) ---- */
-  if (["aim1", "aim2", "aim3"].includes(g.phase)) {
-    drawGauges(ctx, g);
-  }
 }

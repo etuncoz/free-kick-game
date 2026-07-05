@@ -93,6 +93,7 @@ export function newScenario(g) {
   return {
     phase: "aim1",
     kick: k,
+    distance: Math.round(g.D),
     windKmh: Math.round(Math.abs(g.wind) * 26),
     windDir: g.wind >= 0 ? 1 : -1,
     msg: null,

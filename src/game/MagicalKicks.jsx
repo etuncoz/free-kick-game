@@ -13,11 +13,20 @@ import { TOTAL_KICKS } from "./constants";
    physics.js, canvas drawing lives in render.js, sound in audio.js.
 ------------------------------------------------------------------- */
 
+const GAUGE_PHASE = { h: "aim1", d: "aim2", s: "aim3" };
+const GAUGES = [
+  { key: "h", label: "1 · HEIGHT" },
+  { key: "d", label: "2 · DIRECTION" },
+  { key: "s", label: "3 · SWERVE" },
+];
+
 export default function MagicalKicks() {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const G = useRef(null);
   const audioRef = useRef(null);
+  const gaugeMarkerRefs = useRef({});
+  const gaugeLabelRefs = useRef({});
   if (!audioRef.current) audioRef.current = createAudioController();
 
   const [hud, setHud] = useState({
@@ -27,6 +36,7 @@ export default function MagicalKicks() {
     kick: 1,
     goals: 0,
     streak: 0,
+    distance: null,
     windKmh: 0,
     windDir: 1,
     msg: null,
@@ -107,6 +117,28 @@ export default function MagicalKicks() {
     }
   }, [nextKick, startGame, syncHud]);
 
+  // driven every animation frame (not through React state) so the marker
+  // glides smoothly while a gauge is oscillating, without a 60fps re-render
+  const updateGaugeDom = useCallback((g) => {
+    for (const { key } of GAUGES) {
+      const marker = gaugeMarkerRefs.current[key];
+      const label = gaugeLabelRefs.current[key];
+      if (!marker) continue;
+      const active = g.phase === GAUGE_PHASE[key];
+      let v = null;
+      if (active) v = gaugePos(g, key);
+      else if (g.locked[key] != null) v = key === "h" ? g.locked[key] : (g.locked[key] + 1) / 2;
+      if (v == null) {
+        marker.style.opacity = "0";
+      } else {
+        marker.style.opacity = "1";
+        marker.style.left = `${v * 100}%`;
+        marker.style.background = active ? "#fbbf24" : "#60a5fa";
+      }
+      if (label) label.style.color = active ? "#93c5fd" : "rgba(148,163,184,0.85)";
+    }
+  }, []);
+
   /* ------------------------------ loop ----------------------------- */
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -133,6 +165,7 @@ export default function MagicalKicks() {
         else if (ev.type === "hud") syncHud(ev.patch);
       }
       drawScene(ctx, g);
+      updateGaugeDom(g);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -153,11 +186,9 @@ export default function MagicalKicks() {
   }, [onAction, syncHud]);
 
   /* ------------------------------- ui ------------------------------ */
-  const prompts = {
-    aim1: "Tap to lock HEIGHT",
-    aim2: "Tap to lock DIRECTION",
-    aim3: "Tap to lock SWERVE — this one strikes the ball",
-  };
+  // the ball button is the sole trigger for every phase transition; it's
+  // only live while there's actually something for onAction to do
+  const ballLive = ["menu", "aim1", "aim2", "aim3", "result", "gameover"].includes(hud.phase);
 
   const toggleMute = (e) => {
     e.stopPropagation();
@@ -178,62 +209,38 @@ export default function MagicalKicks() {
       `}</style>
 
       <div className="w-full max-w-4xl">
-        {/* scoreboard */}
-        <div className="flex items-stretch justify-between gap-2 mb-2 text-slate-200">
-          <div className="flex items-center gap-3 bg-slate-900/80 border border-blue-500/30 rounded-lg px-3 py-1.5">
-            <span className="text-[10px] tracking-[0.2em] text-blue-300">SCORE</span>
-            <span className="text-xl font-bold tabular-nums" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
-              {hud.score}
-            </span>
-            {hud.streak > 1 && (
-              <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded px-1.5 py-0.5">
-                x{hud.streak} STREAK
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3 bg-slate-900/80 border border-blue-500/30 rounded-lg px-3 py-1.5">
-            <span className="text-[10px] tracking-[0.2em] text-blue-300">KICK</span>
-            <span className="text-xl font-bold tabular-nums" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
-              {hud.kick}
-              <span className="text-slate-500 text-sm">/{TOTAL_KICKS}</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2 bg-slate-900/80 border border-blue-500/30 rounded-lg px-3 py-1.5">
-            <span className="text-[10px] tracking-[0.2em] text-blue-300">WIND</span>
-            <span className="text-lg font-bold text-cyan-300">{hud.windDir > 0 ? "→" : "←"}</span>
-            <span className="text-sm font-semibold tabular-nums">{hud.windKmh} km/h</span>
-          </div>
-          <button
-            onClick={toggleMute}
-            className="bg-slate-900/80 border border-blue-500/30 rounded-lg px-3 text-slate-300 hover:text-white hover:border-blue-400 transition-colors text-sm"
-            aria-label={hud.muted ? "Unmute sound" : "Mute sound"}
-          >
-            {hud.muted ? "🔇" : "🔊"}
-          </button>
-        </div>
-
         {/* game canvas */}
         <div
           ref={wrapRef}
-          className="relative w-full aspect-[16/10] rounded-xl overflow-hidden ring-1 ring-blue-500/30 shadow-2xl shadow-blue-900/40 cursor-pointer"
-          onPointerDown={onAction}
-          role="button"
-          tabIndex={0}
-          aria-label="Game area. Tap or press space to play."
+          className="relative w-full aspect-[16/10] rounded-xl overflow-hidden ring-1 ring-blue-500/30 shadow-2xl shadow-blue-900/40"
+          aria-label="Free kick pitch view"
         >
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
-          {/* stage prompt */}
-          {prompts[hud.phase] && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none">
-              <div
-                className="anim bg-slate-950/70 border border-blue-400/40 text-blue-100 text-xs sm:text-sm font-semibold tracking-wide rounded-full px-4 py-1.5"
-                style={{ animation: "floaty 2.2s ease-in-out infinite" }}
-              >
-                {prompts[hud.phase]}
-              </div>
-            </div>
-          )}
+          {/* the ball button: sole trigger for locking height/direction/swerve
+              and for advancing every other phase transition */}
+          <button
+            onClick={onAction}
+            aria-label={
+              hud.phase === "aim1"
+                ? "Lock height"
+                : hud.phase === "aim2"
+                ? "Lock direction"
+                : hud.phase === "aim3"
+                ? "Lock swerve and strike"
+                : hud.phase === "result"
+                ? "Next kick"
+                : hud.phase === "gameover"
+                ? "Play again"
+                : "Kick off"
+            }
+            className={`anim absolute z-20 bottom-3 right-3 sm:bottom-4 sm:right-4 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-blue-400 to-blue-600 shadow-lg shadow-blue-900/60 ring-2 ring-white/40 flex items-center justify-center text-3xl sm:text-4xl transition-all duration-200 ${
+              ballLive ? "opacity-100 hover:scale-105 active:scale-95" : "opacity-0 pointer-events-none"
+            }`}
+            style={{ animation: ballLive ? "floaty 2s ease-in-out infinite" : "none" }}
+          >
+            ⚽
+          </button>
 
           {/* result banner */}
           {hud.msg && hud.phase === "result" && (
@@ -255,7 +262,7 @@ export default function MagicalKicks() {
                 <div className="text-center text-sm sm:text-base font-semibold mt-1 opacity-90">{hud.msg.sub}</div>
               </div>
               <div className="mt-4 text-slate-200/80 text-xs font-semibold tracking-widest bg-slate-950/60 rounded-full px-4 py-1.5">
-                TAP FOR NEXT KICK
+                TAP ⚽ FOR NEXT KICK
               </div>
             </div>
           )}
@@ -278,7 +285,7 @@ export default function MagicalKicks() {
                 className="mt-6 anim bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30"
                 style={{ animation: "floaty 2.4s ease-in-out infinite" }}
               >
-                TAP TO KICK OFF
+                TAP ⚽ TO KICK OFF
               </div>
               <div className="mt-3 text-[11px] text-slate-500">Space or Enter works too · {TOTAL_KICKS} free kicks per match</div>
             </div>
@@ -307,10 +314,106 @@ export default function MagicalKicks() {
                   : "The wall sends its regards."}
               </div>
               <div className="mt-6 bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30">
-                TAP TO PLAY AGAIN
+                TAP ⚽ TO PLAY AGAIN
               </div>
             </div>
           )}
+        </div>
+
+        {/* info + gauge panel - lives below the canvas (always mounted, even
+            outside the aim phases, so the layout never shifts) so it never
+            covers the kicker or the ball, and keeps stats + gauges in one
+            place the player only has to glance at once */}
+        <div className="mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl overflow-hidden text-slate-200">
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5 border-b border-blue-500/20">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">
+                  SCORE
+                </span>
+                <span
+                  className="text-base sm:text-lg font-bold tabular-nums"
+                  style={{ fontFamily: "'Archivo Black', sans-serif" }}
+                >
+                  {hud.score}
+                </span>
+                {hud.streak > 1 && (
+                  <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded px-1.5 py-0.5">
+                    x{hud.streak}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">
+                  KICK
+                </span>
+                <span
+                  className="text-base sm:text-lg font-bold tabular-nums"
+                  style={{ fontFamily: "'Archivo Black', sans-serif" }}
+                >
+                  {hud.kick}
+                  <span className="text-slate-500 text-xs">/{TOTAL_KICKS}</span>
+                </span>
+              </div>
+              <div className="hidden sm:flex items-center gap-1.5">
+                <span className="text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">DISTANCE</span>
+                <span className="text-base sm:text-lg font-bold tabular-nums">
+                  {hud.distance != null ? `${hud.distance}m` : "—"}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">
+                  WIND
+                </span>
+                <span className="text-sm sm:text-base font-bold text-cyan-300">
+                  {hud.windDir > 0 ? "→" : "←"}
+                </span>
+                <span className="text-xs sm:text-sm font-semibold tabular-nums">{hud.windKmh} km/h</span>
+              </div>
+              <button
+                onClick={toggleMute}
+                className="text-slate-300 hover:text-white transition-colors text-base"
+                aria-label={hud.muted ? "Unmute sound" : "Mute sound"}
+              >
+                {hud.muted ? "🔇" : "🔊"}
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 sm:gap-6 px-4 sm:px-6 py-3">
+          {GAUGES.map(({ key, label }) => (
+            <div key={key} className="flex flex-col items-center">
+              <div
+                ref={(el) => (gaugeLabelRefs.current[key] = el)}
+                className="text-[10px] sm:text-xs font-bold tracking-wide mb-2 text-slate-400"
+              >
+                {label}
+              </div>
+              <div
+                className="relative w-full h-3.5 rounded bg-slate-800 border border-slate-500/50"
+                style={
+                  key === "h"
+                    ? { background: "linear-gradient(to right, rgba(34,197,94,.35), rgba(239,68,68,.35))" }
+                    : undefined
+                }
+              >
+                {key !== "h" && (
+                  <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/60 -translate-x-1/2" />
+                )}
+                <div
+                  ref={(el) => (gaugeMarkerRefs.current[key] = el)}
+                  className="absolute -top-1.5 -bottom-1.5 w-[5px] rounded -translate-x-1/2"
+                  style={{ left: "0%", opacity: 0 }}
+                />
+              </div>
+              <div className="w-full flex justify-between mt-1 text-[9px] sm:text-[10px] font-semibold text-slate-500">
+                <span>{key === "h" ? "LOW" : "◀"}</span>
+                <span>{key === "h" ? "HIGH" : "▶"}</span>
+              </div>
+            </div>
+          ))}
+          </div>
         </div>
 
         <div className="mt-2 text-center text-[11px] text-slate-500">
