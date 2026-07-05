@@ -295,6 +295,14 @@ On `GOAL` (and only on `GOAL`), `render.js` now draws, at the exact net-impact p
   deep it is — the net visibly catches and follows the ball. The goal frame also gained back
   stanchions, a ground bar and a shaded double-stroke on the posts.
 
+**Ghost try marks** (added with the gameplay-improvements batch): every finished try records
+`{x, y, z, result}` in `g.tryMarks` — the goal-plane crossing, or the wall-plane impact for
+blocked shots (the flight-timeout WIDE has no coordinates and records nothing).
+`newScenario` clears the array only on fresh-stage entry, so retries keep the history, capped at
+`TRIES_PER_STAGE − 1`.
+`render.js` draws them as amber X marks (newest brightest) during `aim*`/`runup` only, turning
+the five tries per stage into a "walk your aim in" learning loop.
+
 **Stands placement** (same session): the crowd wall is no longer a thin strip at the horizon — it
 is drawn *after* the pitch, from the sky band down to the ground point 6 m behind the goal
 (`P(0, 0, D+6).y`), so the audience starts directly behind the net and covers the far pitch and

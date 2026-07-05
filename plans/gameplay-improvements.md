@@ -37,21 +37,26 @@ Note for later phases: the keeper capsule is ~0.6 m thick around a diagonal body
 Verified: vitest 21/21, build green.
 
 ## Phase 2: Ghost markers of previous tries
-Status: Not started
+Status: Complete
 
-- [ ] `physics.js`: add `g.tryMarks = []` to `createGameState`; in `finishKick`, push `{ x, y, z, result }` (goal-plane crossing for WIDE/OVER/POST/SAVED/GOAL at `z = D`; wall impact at `z = wallZ` for WALL) - pass the impact coords through from the WALL branch which currently doesn't; cap the array at `TRIES_PER_STAGE - 1` entries.
-- [ ] Clear `tryMarks` in `newScenario` ONLY when entering a fresh stage (`triesLeft === TRIES_PER_STAGE`), so retries keep the history.
-- [ ] `render.js`: draw each mark as a small X at its projected world position, opacity fading with age (newest brightest), during aim/runup phases.
-- [ ] Unit tests: a miss records a mark with the crossing coords; a second miss appends; marks survive `newScenario` on retry but are cleared on stage advance; WALL records at the wall plane.
-- [ ] E2E: miss twice at distinct spots, screenshot showing two fading X marks; verify marks gone after advancing a stage.
-- [ ] HANDOVER.md §4 note; `npm test` + build green; commit and push.
+- [x] `physics.js`: add `g.tryMarks = []` to `createGameState`; in `finishKick`, push `{ x, y, z, result }` (goal-plane crossing for WIDE/OVER/POST/SAVED/GOAL at `z = D`; wall impact at `z = wallZ` for WALL) - pass the impact coords through from the WALL branch which currently doesn't; cap the array at `TRIES_PER_STAGE - 1` entries.
+- [x] Clear `tryMarks` in `newScenario` ONLY when entering a fresh stage (`triesLeft === TRIES_PER_STAGE`), so retries keep the history.
+- [x] `render.js`: draw each mark as a small X at its projected world position, opacity fading with age (newest brightest), during aim/runup phases.
+- [x] Unit tests: a miss records a mark with the crossing coords; a second miss appends; marks survive `newScenario` on retry but are cleared on stage advance; WALL records at the wall plane.
+- [x] E2E: miss twice at distinct spots, screenshot showing two fading X marks; verify marks gone after advancing a stage.
+- [x] HANDOVER.md §4 note; `npm test` + build green; commit and push.
 
 ### Verification Plan
 - `npx vitest run` passes including tryMarks tests.
 - Playwright screenshot shows the X markers during a retry and none after stage advance.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-05.
+`g.tryMarks` records each finished try (`{x, y, z, result}`): goal-plane crossings at `z = D`, wall impacts at `z = wallZ` (the WALL branch now passes its impact coords to `finishKick`; the flight-timeout WIDE has no coords and is deliberately skipped via the `hitX != null` guard).
+Cleared in `newScenario` only when `triesLeft === TRIES_PER_STAGE` (same fresh-stage condition as the wall-size roll); capped at `TRIES_PER_STAGE − 1`.
+`render.js` draws amber X marks with age fading (newest 0.85 alpha, −0.2 per step older), only during `aim1/2/3` + `runup` so a live ball is never cluttered; drawn after the goal frame, before the keeper, so wall/keeper correctly occlude marks behind them.
+Also fixed a pre-existing flaky test discovered this phase: `windZ` can be `-0` (zero magnitude × negative cosine) and `toBe(0)` uses Object.is, which rejects `-0` - switched the stage-1 windless assertions to `== 0` comparisons.
+Tests 21 → 25; E2E verified two distinct fading marks on retry (screenshot reviewed) and a clean slate after stage advance; build green.
 
 ## Phase 3: Stage personalities (names + gimmick overrides)
 Status: Not started

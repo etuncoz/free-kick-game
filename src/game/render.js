@@ -342,6 +342,26 @@ export function drawScene(ctx, g) {
   line(plt, prt);
   ctx.lineCap = "butt";
 
+  /* ---- ghost marks: where the earlier tries of this stage ended ----
+     drawn only while lining up the next try (aim/runup) so they read as
+     "walk your aim in" feedback and never distract from a live ball */
+  if (["aim1", "aim2", "aim3", "runup"].includes(g.phase) && g.tryMarks?.length) {
+    const n = g.tryMarks.length;
+    g.tryMarks.forEach((m, i) => {
+      const pt = P(m.x, m.y, m.z);
+      const r = Math.max(4, 0.14 * pt.s);
+      const alpha = 0.85 - (n - 1 - i) * 0.2; // newest brightest
+      ctx.strokeStyle = `rgba(251,191,36,${alpha})`;
+      ctx.lineWidth = Math.max(1.5, r * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(pt.x - r, pt.y - r);
+      ctx.lineTo(pt.x + r, pt.y + r);
+      ctx.moveTo(pt.x + r, pt.y - r);
+      ctx.lineTo(pt.x - r, pt.y + r);
+      ctx.stroke();
+    });
+  }
+
   /* ---- keeper ---- */
   const kp = P(g.kpX, 0, g.D - 0.25);
   drawPlayer(ctx, kp, kp.s, {

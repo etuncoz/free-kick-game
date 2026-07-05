@@ -58,10 +58,12 @@ describe("newScenario (stage mode)", () => {
   it("is windless on stage 1", () => {
     const g = createGameState();
     newScenario(g);
-    expect(g.windX).toBe(0);
-    expect(g.windZ).toBe(0);
-    expect(g.windAx).toBe(0);
-    expect(g.windAz).toBe(0);
+    // == comparisons: the magnitude is 0 but a negative angle cosine can
+    // produce -0, which Object.is (toBe) would flakily reject
+    expect(g.windX == 0).toBe(true);
+    expect(g.windZ == 0).toBe(true);
+    expect(g.windAx == 0).toBe(true);
+    expect(g.windAz == 0).toBe(true);
   });
 
   it("wind blows from all compass quadrants over many rolls", () => {
@@ -220,6 +222,52 @@ describe("aiming and swerve (original-game feel)", () => {
     const rights = STAGES.filter((s) => s.gx > 3).length;
     expect(lefts).toBeGreaterThanOrEqual(3);
     expect(rights).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("ghost try marks", () => {
+  it("a miss records where the try crossed the goal plane", () => {
+    const g = flightState({ aimX: null });
+    g.ball.x = g.gx + GOAL_HALF + 2.0;
+    step(g, 0.033);
+    expect(g.result).toBe("WIDE");
+    expect(g.tryMarks).toHaveLength(1);
+    expect(g.tryMarks[0].z).toBe(g.D);
+    expect(g.tryMarks[0].x).toBeCloseTo(g.gx + GOAL_HALF + 2.0, 1);
+    expect(g.tryMarks[0].result).toBe("WIDE");
+  });
+
+  it("a wall block records at the wall plane", () => {
+    const g = flightState({ aimX: null });
+    g.ball = { x: g.wallX, y: 1.0, z: g.wallZ - 0.3, vx: 0, vy: 0, vz: 25, spin: 0 };
+    g.wallJh = 0;
+    step(g, 0.033);
+    expect(g.result).toBe("WALL");
+    expect(g.tryMarks).toHaveLength(1);
+    expect(g.tryMarks[0].z).toBe(g.wallZ);
+  });
+
+  it("retries keep the marks; a fresh stage clears them", () => {
+    const g = flightState({ aimX: null });
+    g.ball.x = g.gx + GOAL_HALF + 2.0;
+    step(g, 0.033); // miss -> 1 mark, triesLeft now 4
+    newScenario(g); // retry (triesLeft < TRIES_PER_STAGE)
+    expect(g.tryMarks).toHaveLength(1);
+    g.triesLeft = TRIES_PER_STAGE; // stage advance resets the budget
+    newScenario(g);
+    expect(g.tryMarks).toHaveLength(0);
+  });
+
+  it("never keeps more marks than there are earlier tries", () => {
+    const g = flightState({ aimX: null });
+    for (let i = 0; i < TRIES_PER_STAGE + 2; i++) {
+      g.phase = "flight";
+      g.result = null;
+      g.flightT = 0;
+      g.ball = { x: g.gx + GOAL_HALF + 2.0, y: 1.0, z: g.D - 0.3, vx: 0, vy: 0, vz: 25, spin: 0 };
+      step(g, 0.033);
+    }
+    expect(g.tryMarks).toHaveLength(TRIES_PER_STAGE - 1);
   });
 });
 

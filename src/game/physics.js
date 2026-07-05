@@ -58,6 +58,7 @@ export function createGameState() {
     wallHalf: 1.1,
     ball: { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 },
     trail: [],
+    tryMarks: [], // where earlier tries of this stage ended (ghost X marks)
     locked: { h: null, d: null, s: null },
     gaugeT: 0,
     gaugeSpeed: 1.1,
@@ -98,6 +99,10 @@ export function newScenario(g) {
   // keep it for every retry; position jitter and the jump still re-roll.
   if (g.triesLeft === TRIES_PER_STAGE) {
     g.stageWallN = Math.random() < 0.5 ? 4 : Math.random() < 0.5 ? 3 : 5;
+    // the ghost marks of earlier tries only make sense within one stage -
+    // a fresh stage (full try budget) starts with a clean slate; retries
+    // deliberately keep them so the player can walk their aim in
+    g.tryMarks = [];
   }
   const n = g.stageWallN;
   const nearPostAim = g.gx - Math.sign(g.gx || 1) * 1.7;
@@ -221,6 +226,13 @@ function finishKick(g, res, hitX, hitY) {
   g.result = res;
   g.phase = "settle";
   g.settleT = 0;
+  // remember where this try ended for the retry ghost markers - at the
+  // goal plane, or at the wall plane for blocked shots. The safety
+  // timeout calls in without coords; there is nothing meaningful to mark.
+  if (hitX != null) {
+    g.tryMarks.push({ x: hitX, y: hitY, z: res === "WALL" ? g.wallZ : g.D, result: res });
+    if (g.tryMarks.length > TRIES_PER_STAGE - 1) g.tryMarks.shift();
+  }
   if (res === "GOAL") {
     g.netRipple = 1;
     g.netHitX = hitX;
@@ -329,7 +341,7 @@ export function step(g, dt) {
           b.vz = -Math.abs(b.vz) * 0.22;
           b.vx *= 0.25;
           b.vy = Math.min(b.vy, 1.5);
-          const name = finishKick(g, "WALL");
+          const name = finishKick(g, "WALL", ix, iy);
           events.push({ type: "sfx", name });
           break;
         }
