@@ -42,12 +42,12 @@ Status: Complete
 ### Phase Summary
 Done 2026-07-05, after two real-world snags worth knowing about:
 1. **`npm ci` fails cross-platform with this dependency tree.** The wasm32-wasi fallback packages (`@rolldown/binding-wasm32-wasi`, `@tailwindcss/oxide-wasm32-wasi`, pulled in via vitest's rolldown-vite) pin `@emnapi/*` versions that npm's lock validation reports as "Missing from lock file" when the lock was generated on Windows and validated on Linux - an npm/cli#7902-class bug. Regenerating the lock from scratch and matching CI's Node major (24) to the local generator did NOT fix it. The workflow therefore runs `npm install --no-audit --no-fund` instead of `npm ci` (still resolves from the committed lock; `npm test` still gates the deploy). If the wasm fallback packages ever leave the tree, switching back to `npm ci` is preferable.
-2. **First `deploy-pages` attempt failed transiently** ("Deployment failed, try again later", right after the Pages environment was created); the rerun succeeded immediately.
+2. **The first `deploy-pages` attempt fails reliably** ("Deployment failed, try again later" on the first status poll) and succeeds on retry - observed on three consecutive runs, so it is a pattern, not a one-off. The workflow now retries automatically: the first deploy step has `continue-on-error: true`, and on failure a `sleep 20` + second `deploy-pages` step runs. Verified self-healing on the run for `db3900b` (first attempt failed, retry deployed, workflow green).
 Also: the lock file was regenerated from scratch along the way (fresh `node_modules` + `package-lock.json`), which is why `ad173f7` trims 102 lines from the lock.
 
 ## Final Recap
 The game deploys automatically to `https://etuncoz.github.io/free-kick-game/` on every push to `main`.
-Commits: `061a6f2` (base path + workflow), `ebc1500`/`ad173f7` (lock file repair attempts), `4452965` (the actual CI fix: `npm install` instead of `npm ci`).
+Commits: `061a6f2` (base path + workflow), `ebc1500`/`ad173f7` (lock file repair attempts), `4452965` (the actual CI fix: `npm install` instead of `npm ci`), `db3900b` (automatic deploy retry).
 Pipeline: checkout → Node 24 → `npm install` → `npm test` (35 tests gate the deploy) → `vite build` → upload `dist/` → `deploy-pages`, with `concurrency: pages` so rapid pushes don't race.
 Live site verified by an automated browser load: correct title, menu renders, zero failed asset requests.
 
@@ -55,5 +55,5 @@ Live site verified by an automated browser load: correct title, menu renders, ze
 Deployment is now fully automatic:
 1. Push (or merge) to `main`.
 2. The "Deploy to GitHub Pages" workflow builds, tests, and publishes; watch it with `gh run watch` or in the Actions tab.
-3. If the deploy job fails with "Deployment failed, try again later", rerun the failed job (`gh run rerun <id> --failed`) - observed to be transient.
+3. The workflow already retries the flaky first deployment attempt once; if BOTH attempts fail, rerun the job (`gh run rerun <id> --failed`).
 4. Sanity check `https://etuncoz.github.io/free-kick-game/` afterwards (hard refresh; assets are content-hashed so stale caches resolve themselves).
