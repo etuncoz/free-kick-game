@@ -4,7 +4,7 @@ A playable web prototype of the classic *"Roberto Baggio's Magical Kicks"* three
 kick game, rebuilt in **React + Canvas 2D + Tailwind + Vite**.
 This document is the handover for continuing development locally (e.g. with Claude Code), and eventually porting the mechanic to a native iOS app.
 
-The project now lives in a git repository, pushed to `https://github.com/etuncoz/free-kick-game.git` (branch `main`).
+The project now lives in a git repository, pushed to `https://github.com/etuncoz/free-kick-game.git` — work on `development`, deploy from `main`, PRs only (see §3 "Branching, CI & deployment").
 Commit history is the primary record of *what* changed from here on — this document is for the *why* behind decisions and design details that don't show up in a diff.
 
 ---
@@ -43,6 +43,8 @@ This is now a real scaffolded Vite app, not a single artifact component.
 | `src/game/audio.js` | WebAudio sfx synth, exposed as `createAudioController()` returning `{ ensureAudio, sfx, setMuted }`. |
 | `src/game/storage.js` | localStorage persistence of run records (keys `fkl.bestStage`, `fkl.bestScore`, `fkl.cupWon`) via `loadBests()` / `saveRunEnd()`. Every access is guarded, so private browsing just means nothing persists. |
 | `src/game/constants.js` | Shared math helpers (`rnd`, `clamp`, `lerp`, `easeOut`, `ping`) and tunables (`GOAL_HALF`, `BALL_R`, `PENALTY_BOX_DEPTH`, the `STAGES` table, `TRIES_PER_STAGE`, `STAGE_KP_SIGMA`, `STAGE_GAUGE_SPEED`, `WIND_UNIT_KMH`). |
+| `.github/workflows/ci.yml` | Build + full test suite on every push to `development` and on PRs targeting `development` or `main`. |
+| `.github/workflows/deploy.yml` | GitHub Pages deployment, triggered by pushes to `main` (i.e. merged deploy PRs). See §3 "Branching, CI & deployment". |
 | `HANDOVER.md` | This document. |
 
 ## 3. Running it locally
@@ -61,6 +63,24 @@ Notes:
 - Run records (best stage reached, best score, cup won) persist across reloads via localStorage (`src/game/storage.js`).
   There is deliberately no mid-run resume: reloading starts a fresh run at stage 1.
 - A dev-only debug hook exists: `window.__game` is set to the live mutable game state, but only when `import.meta.env.DEV` is true. It's stripped from production builds (verified by grepping the built bundle for `__game`). Useful for forcing specific game states (e.g. `window.__game.result = "GOAL"`) when testing visuals without waiting on stochastic physics — see the Playwright scripts pattern used this session, described in §10.
+
+### Branching, CI & deployment
+
+**Direct pushes to shared branches are forbidden — everything lands via pull request.**
+
+- Day-to-day work happens on `development`: branch a feature branch off it, open a PR back into
+  `development`, merge when CI is green.
+- `main` is the deployed branch. It only ever receives **deploy PRs from `development`** — open
+  one exactly when you intend to release to GitHub Pages, nothing else targets `main`.
+- CI (`.github/workflows/ci.yml`): builds and runs the full test suite on every push to
+  `development` and on every PR targeting `development` or `main`, so both feature merges and
+  deploy PRs are checked before and after landing.
+- Deployment (`.github/workflows/deploy.yml`): merging a deploy PR into `main` builds, re-tests,
+  and publishes to `https://etuncoz.github.io/free-kick-game/` automatically. The Pages backend's
+  first deployment attempt regularly fails transiently; the workflow retries once by itself.
+- Both workflows use `npm install` rather than `npm ci`: the wasm32-wasi fallback packages
+  (rolldown / tailwind oxide) break `npm ci`'s lock validation when the lock file was generated
+  on a different platform.
 
 ## 4. Architecture
 

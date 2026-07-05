@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [development]
+  # PRs get checked before they land - both feature -> development and the
+  # deploy PRs development -> main
+  pull_request:
+    branches: [development, main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # not `npm ci`: the wasm32-wasi fallback packages (rolldown /
+      # tailwind oxide) trip npm ci's lock validation when the lock was
+      # generated on another platform (npm/cli#7902-class bug). npm install
+      # still resolves from the committed lock.
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
