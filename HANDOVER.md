@@ -20,9 +20,12 @@ free kick game built entirely around a **three-stage timing gauge**:
 
 Layered on top: per-kick **wind**, a **defensive wall** that jumps, a **goalkeeper** with an
 imperfect prediction of where the shot will land, varying kick positions/angles, and a
-score/streak system across a 10-kick match.
+score/streak system.
 
-This prototype implements all of the above. The eventual target is an iOS app (SpriteKit was
+This prototype implements all of those mechanics, but replaces the original's 10-kick match with a **10-stage "Cup Run"**.
+Each stage is a fixed kick spot with 5 tries: a goal advances immediately (spare tries are discarded), failing all 5 ends the run, and clearing stage 10 wins the cup.
+Difficulty grows across stages via distance and wind only; keeper skill and gauge speed are constant (see §4 "Scenario generation" and §5).
+The eventual target is an iOS app (SpriteKit was
 recommended); this web build exists to validate and tune the *feel* first, because the tuned
 constants transfer directly.
 
@@ -38,7 +41,8 @@ This is now a real scaffolded Vite app, not a single artifact component.
 | `src/game/physics.js` | Pure game-state functions: `newScenario`, `launch`, `step` (integration + collisions + scoring), `gaugePos`. No React/DOM/audio imports — this is the file that ports to Swift verbatim (see §8). `step()` returns an event list (`{type:'sfx',name}` / `{type:'hud',patch}`) instead of calling side effects directly. |
 | `src/game/render.js` | Canvas drawing: the tilted-camera projection, sprites, pitch/goal/net. Reads `g` but never mutates game-logic fields. The gauge HUD used to be drawn here too (see §4) — it no longer is. |
 | `src/game/audio.js` | WebAudio sfx synth, exposed as `createAudioController()` returning `{ ensureAudio, sfx, setMuted }`. |
-| `src/game/constants.js` | Shared math helpers (`rnd`, `clamp`, `lerp`, `easeOut`, `ping`) and tunables (`GOAL_HALF`, `BALL_R`, `TOTAL_KICKS`, `MAX_WIND_KMH`, `PENALTY_BOX_DEPTH`). |
+| `src/game/storage.js` | localStorage persistence of run records (keys `fkl.bestStage`, `fkl.bestScore`, `fkl.cupWon`) via `loadBests()` / `saveRunEnd()`. Every access is guarded, so private browsing just means nothing persists. |
+| `src/game/constants.js` | Shared math helpers (`rnd`, `clamp`, `lerp`, `easeOut`, `ping`) and tunables (`GOAL_HALF`, `BALL_R`, `PENALTY_BOX_DEPTH`, the `STAGES` table, `TRIES_PER_STAGE`, `STAGE_KP_SIGMA`, `STAGE_GAUGE_SPEED`, `WIND_UNIT_KMH`). |
 | `HANDOVER.md` | This document. |
 
 ## 3. Running it locally
@@ -54,15 +58,16 @@ npm run build    # production build, outputs to dist/
 Notes:
 - Fonts (`Archivo Black`, `Space Grotesk`) load via a `<link>` in `index.html` (moved out of the component's inline `<style>` for production).
 - Audio is synthesized with WebAudio (no asset files). The `AudioContext` is created lazily on the first user gesture, as browsers require.
-- No persistence yet — "session best" resets on reload. Still a good first improvement (see §7).
+- Run records (best stage reached, best score, cup won) persist across reloads via localStorage (`src/game/storage.js`).
+  There is deliberately no mid-run resume: reloading starts a fresh run at stage 1.
 - A dev-only debug hook exists: `window.__game` is set to the live mutable game state, but only when `import.meta.env.DEV` is true. It's stripped from production builds (verified by grepping the built bundle for `__game`). Useful for forcing specific game states (e.g. `window.__game.result = "GOAL"`) when testing visuals without waiting on stochastic physics — see the Playwright scripts pattern used this session, described in §10.
 
 ## 4. Architecture
 
 Two worlds, deliberately separated, now split across files instead of one component:
 
-- **React state (`hud`)**, in `MagicalKicks.jsx` — only what the DOM overlay needs: phase, score, kick number, distance
-  to goal, wind display, result message, mute. Updated *sparingly* via `syncHud()` at state transitions,
+- **React state (`hud`)**, in `MagicalKicks.jsx` — only what the DOM overlay needs: phase, score, stage, tries left, distance
+  to goal, wind display, result message, persisted bests, mute. Updated *sparingly* via `syncHud()` at state transitions,
   never per-frame. (The gauge markers themselves are the exception — see "HUD & interaction model" below.)
 - **Mutable game state (`G.current`)**, created by `physics.js`'s `createGameState()` — everything the 60fps loop touches: ball kinematics,
   gauge timer, keeper/wall animation state, scenario parameters. Lives in a ref so the
@@ -74,7 +79,7 @@ This is what keeps `physics.js` free of React and audio dependencies.
 ### State machine (`g.phase`)
 
 ```
-menu → aim1 → aim2 → aim3 → runup → flight → settle → result → (next kick | gameover)
+menu → aim1 → aim2 → aim3 → runup → flight → settle → result → (retry | next stage | gameover | won)
                                                                   ↑ ⚽ button (or Space/Enter) advances
 ```
 
@@ -83,7 +88,12 @@ menu → aim1 → aim2 → aim3 → runup → flight → settle → result → (
 - `runup` (0.38 s): the kicker sprite lerps to the ball; then `launch()` fires.
 - `flight`: physics integration + collision checks each frame.
 - `settle` (1.05 s): result already decided; ball deflects/nets, ripple plays, then the banner.
-- `result`: waits for the ⚽ button → `nextKick()` or `gameover`.
+- `result`: waits for the ⚽ button → `advance()` in `MagicalKicks.jsx`: a GOAL moves to the next stage with 5 fresh tries
+  (or to `won` if stage 10 was just cleared); a miss retries the exact same spot, or goes to `gameover` when the tries hit 0.
+  **Try consumption lives in physics** (`finishKick` decrements `triesLeft` on any miss; goals leave it untouched) — the
+  component only reads the counter.
+- `won` / `gameover`: terminal overlays; `endRun()` persists any improved records via `storage.js` on entry.
+  The ⚽ button restarts a fresh run at stage 1 from either.
 
 ### HUD & interaction model (reworked in a later session)
 
@@ -97,9 +107,10 @@ list under Known Issues (§6); it's now fixed by moving the whole HUD out of the
 The panel is now plain DOM/Tailwind markup in `MagicalKicks.jsx`, rendered in one card below the
 canvas that combines two rows:
 
-1. An info row — SCORE and KICK grouped on the left, DISTANCE and WIND (plus the mute button) on
-   the right — all sharing the same label/value text classes (`STAT_LABEL_CLS`/`STAT_VALUE_CLS`)
-   so the four stats read as one consistent set instead of four differently-sized boxes.
+1. An info row — SCORE, STAGE (`x/10`) and TRIES (five dots, amber = remaining) grouped on the left,
+   DISTANCE and WIND (plus the mute button) on the right — all sharing the same label/value text
+   classes (`STAT_LABEL_CLS`/`STAT_VALUE_CLS`) so the stats read as one consistent set instead of
+   differently-sized boxes.
 2. The HEIGHT/DIRECTION/SWERVE gauge row, unchanged in behaviour from the canvas version.
 
 This card is **always mounted**, even outside `aim1/2/3` — only the gauge markers' `opacity`
@@ -186,42 +197,48 @@ See `step()` in `physics.js` — the `if (g.phase !== "flight") continue;` line 
 
 At `launch()` the keeper computes the analytic arrival point
 `x = vx·T + ½(curl+wind)·T²` with `T = D / vz`, adds Gaussian-ish noise
-(`kpSigma`, shrinking each kick: `max(0.35, 1.45 − 0.11·kick)`), clamps to reachable range,
+(`kpSigma`, fixed at `STAGE_KP_SIGMA = 0.9` for the whole run), clamps to reachable range,
 then after a 0.24 s reaction delay eases toward it (dive rotation + lift if the shot is high).
 Save zones at ball arrival: body `|dx| < 0.55 ∧ y < 2.25`; dive `|dx| < 1.5 ∧ y < 2.15 − 0.75·(dx/1.5)`.
 Corners beat him when his prediction noise pulls him off — that's the intended skill ceiling.
 
 ### Scenario generation (`newScenario`)
 
-Per kick: distance `D ∈ [19, 28.5]` m, angle `gx ∈ [−5.2, 5.2]` m, wall of 3–5 players placed
-on the ball→near-post line at `min(9.15, D/2)`, 80 % chance the wall jumps (timed to arrive
-0.3 s before the ball).
+The kick spot is **not random anymore** — `D` and `gx` come straight from the hand-authored
+`STAGES` table in `constants.js` (10 entries of `{ d, gx, maxWindKmh }`; `D` ramps 19 → 30 m,
+`|gx|` up to 5.2 m, wind cap 0 → 10 km/h).
+The spot is identical for all 5 tries of a stage; only wind, the wall (3–5 players, 80 % jump
+chance, timed to arrive 0.3 s before the ball) and the keeper's prediction noise re-roll per try.
+The wall sits on the ball→near-post line at `min(9.15, D/2)`, which always resolves to the 9.15 m
+cap (10 yards) since every stage has `D ≥ 19`.
 
-**Distance range fixed in a later session**: `D` used to roll as low as 17 m, only 0.5 m clear of
-the 16.5 m penalty box edge (`PENALTY_BOX_DEPTH` in `constants.js`) — a free kick from inside (or
-right on the edge of) the box would actually be a penalty or indirect free kick, and it read that
-way on screen too, with the box line rendering almost on top of the ball. `D` is now
-`rnd(PENALTY_BOX_DEPTH + 2.5, PENALTY_BOX_DEPTH + 12)`, i.e. always at least 2.5 m clear of the box.
-One side effect: since `D ≥ 19` now, `wallZ = min(9.15, D/2)` always resolves to the `9.15` cap
-(10 yards), which is realistic anyway — it no longer varies with `D`.
+All stage distances keep clear of the 16.5 m penalty box edge (`PENALTY_BOX_DEPTH`) — a free kick
+from on/inside the box would read as a penalty, which is why the old random range was floored at
+19 m in the first place.
+Stage 10's `D = 30` exceeds the old random cap of 28.5 m; the framing at that distance was
+verified by screenshot (kicker, ball, wall and goal all comfortably in frame — the elevated
+camera handles it without changes).
 
 The DISTANCE stat shown in the HUD (see "HUD & interaction model" above) is this same `D`, rounded
-and set once per kick via `newScenario`'s returned patch — it is *not* a live read of the ball's
+and set once per try via `newScenario`'s returned patch — it is *not* a live read of the ball's
 current distance from the goal during flight.
 
-**Wind is now capped this session** — previously it grew unbounded with kick number (up to ~35 km/h displayed by kick 10, which felt absurd).
-It now ramps `4.6 → 10 km/h` linearly across the 10 kicks and never exceeds `MAX_WIND_KMH = 10` (`constants.js`):
+Wind rolls per try within the stage's cap, converted to the internal unit via `WIND_UNIT_KMH = 26`
+(1 internal wind unit displays as 26 km/h):
 
 ```js
-maxWindKmh = MAX_WIND_KMH * (0.4 + 0.6 * (k / TOTAL_KICKS));
-maxW = maxWindKmh / 26;   // back to the internal "wind" unit
+maxW = st.maxWindKmh / WIND_UNIT_KMH;
 g.wind = rnd(-maxW, maxW);
 ```
 
 ### Scoring
 
-Goal = 100, + `(streak−1)·25`, + 50 "top bin" bonus if `|x−gx| > 2.75` or `y > 1.9`.
-Any non-goal resets the streak. 10 kicks per match; session best kept in memory.
+Goal = `100 + (streak−1)·25 + spareTries·25 (+ 50 "top bin" bonus if |x−gx| > 2.75 or y > 1.9)`,
+where `spareTries` is the tries that would have remained after the scoring one — first-try goals
+are worth 100 more than fifth-try goals.
+Any non-goal resets the streak, so the streak bonus effectively rewards consecutive first-try clears.
+Points sit on top of pass/fail: they never decide advancement, only the record.
+Best score and best stage reached persist via `storage.js`.
 
 ### Goal-scoring visual feedback (new this session)
 
@@ -241,15 +258,18 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 
 | Constant | Where | Current | Effect |
 |---|---|---|---|
-| `gaugeSpeed` | `newScenario` (physics.js) | `1.05 + 0.07·kick` | Difficulty of the timing itself |
+| `STAGES` | `constants.js` | 10 × `{ d, gx, maxWindKmh }` | THE difficulty curve: kick spot + wind cap per stage (`d` 19→30, `maxWindKmh` 0→10) |
+| `TRIES_PER_STAGE` | `constants.js` | `5` | Attempts per stage before game over |
+| `STAGE_GAUGE_SPEED` | `constants.js` | `1.4` | Gauge oscillation speed, constant all run (mid-range of the old per-kick ramp) |
+| `STAGE_KP_SIGMA` | `constants.js` | `0.9` | Keeper prediction noise, constant all run (mid-range of the old per-kick ramp) |
 | SWERVE gauge speed ×1.15 | `gaugePos` (physics.js) | 1.15 | Third tap is slightly harder. Single source of truth now — no longer duplicated. |
 | Elevation range | `launch` | 3°–35° | Shot arc envelope |
 | Base speed | `launch` | 20.5–24 m/s | Flight time (~1.1–1.4 s to goal) |
 | Aim cone | `launch` | ±15° | How far off-target you can spray |
 | `curlAx` | `launch` | `s · 12.5` | How much you can bend it |
 | `windAx` | `newScenario` | `wind · 3.1` | Wind influence |
-| `MAX_WIND_KMH` | `constants.js` | `10` | Wind display/effect ceiling, new this session |
-| `kpSigma` | `newScenario` | `1.45 − 0.11·kick` | Keeper skill curve |
+| `WIND_UNIT_KMH` | `constants.js` | `26` | Display conversion: 1 internal wind unit = 26 km/h |
+| Goal points | `finishKick` | `100 + (streak−1)·25 + spareTries·25 (+50 top bin)` | Reward shape: first-try clears and streaks pay most |
 | `kpDelay` | `launch` | 0.24 s | Keeper reaction time |
 | Save zones | goal-plane check | see §4 | How generous the keeper is |
 | Wall jump | `step` | `2.7t − 3.6t²` (peak ≈ 0.5 m) | Jump height/timing |
@@ -266,19 +286,20 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 - **Kicker animation is minimal** (a lerp + lean, no leg swing frames).
 - **No pause/visibility handling**: `dt` is clamped to 33 ms so tab-switching won't explode
   the physics, but a proper pause on `visibilitychange` would be cleaner.
-- **DISTANCE stat always renders in the info row now** (see §4) — it used to be hidden below the `sm` breakpoint; that hiding was removed for consistency with the other stats, but it hasn't been checked on an actual small phone yet, so watch for crowding on the narrowest supported widths.
+- **DISTANCE stat always renders in the info row now** (see §4) — it used to be hidden below the `sm` breakpoint; that hiding was removed for consistency with the other stats, but it hasn't been checked on an actual small phone yet, so watch for crowding on the narrowest supported widths. The cup-run rework made the left stat group wider still (SCORE + STAGE + TRIES dots), so small-width crowding is now *more* likely, not less.
 - Playtest before trusting any feel judgment baked into the constants.
   The original HUD/camera rework was verified visually via automated Playwright screenshots (see §10), not by a human playing it.
-  The later HUD-relocation, ⚽-button, and penalty-box-distance changes were verified only via `npm run build` succeeding — the Chrome browser extension was unavailable in that session too, and no automated screenshot harness was set up for it. A real playtest of those changes is still outstanding.
+  The later HUD-relocation, ⚽-button, and penalty-box-distance changes were verified only via `npm run build` succeeding. A real playtest of those changes is still outstanding.
+- **The stage difficulty curve is untested by a human** (same caveat pattern as above). The whole cup-run mode was verified via automated Playwright runs with rigged ball trajectories — nobody has yet played stages 1→10 honestly to judge whether the distance/wind ramp feels fair, whether `STAGE_KP_SIGMA = 0.9` makes the keeper too strong on near stages or too weak on far ones, or whether 5 tries is the right budget. The `STAGES` table in `constants.js` is a starting point, not a tuned curve.
 
 ## 7. Suggested next steps (web prototype)
 
-1. Add `localStorage` high-score persistence.
+1. Human playtest of the stage curve (see §6) and tune the `STAGES` table accordingly.
 2. Add a debug panel (dat.gui or plain sliders) bound to the §5 constants for live tuning.
-3. Difficulty/mode design: practice mode (no kick limit), sudden-death streak mode.
+3. Difficulty/mode design: practice mode (free play on any spot), endless mode past stage 10.
 4. Haptics stub: `navigator.vibrate(10)` on gauge locks — previews the iOS haptic design.
 5. Optional: replace rect-figures with sprite sheets once art direction is decided.
-6. Playtest the HUD relocation, ⚽ button, and penalty-box distance fix on a real device/browser (see §6) — they've only been verified via a production build, not visually.
+6. Playtest the HUD relocation and ⚽ button on a real device/browser (see §6) — they've only been verified via automated screenshots, not by hand.
 
 ## 8. iOS port plan (the actual goal)
 
@@ -289,7 +310,7 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
   hierarchy; taps → `touchesBegan`; the state machine → a Swift `enum Phase`.
 - **Gauges**: rebuild as an `SKNode` lower-third; add `UIImpactFeedbackGenerator` (.light on
   lock 1–2, .medium on the strike) — this is where native will immediately feel better than web.
-- **Persistence/social**: `UserDefaults` for best score, Game Center leaderboard for the 10-kick match score.
+- **Persistence/social**: `UserDefaults` for the run records (mirror `storage.js`'s three keys), Game Center leaderboard for best cup-run score.
 - **⚠ Legal**: ship with original art, generic branding ("Free Kick Legend"), and **no use of
   Roberto Baggio's name or likeness** — right-of-publicity risk. Game *mechanics* are not
   protectable; names/likenesses/art are.
@@ -301,7 +322,7 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
   to the game state."
 - "Extract the flight model and collision checks into unit tests: a straight 15° shot from 20 m must cross the goal plane between y=1.0 and y=2.2."
 - "Port physics.js to Swift as FlightModel.swift per §8, preserving all constants."
-- "Add localStorage persistence for session best per §7."
+- "Playtest stages 1–10 and retune the STAGES table per §6/§7."
 
 ## 10. How visual changes were verified this session (no browser extension available)
 

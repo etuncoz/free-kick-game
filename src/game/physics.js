@@ -2,9 +2,11 @@ import {
   BALL_R,
   GOAL_H,
   GOAL_HALF,
-  MAX_WIND_KMH,
-  PENALTY_BOX_DEPTH,
-  TOTAL_KICKS,
+  STAGES,
+  STAGE_GAUGE_SPEED,
+  STAGE_KP_SIGMA,
+  TRIES_PER_STAGE,
+  WIND_UNIT_KMH,
   clamp,
   easeOut,
   lerp,
@@ -25,7 +27,8 @@ export function createGameState() {
     phase: "menu",
     score: 0,
     best: 0,
-    kick: 1,
+    stage: 1,
+    triesLeft: TRIES_PER_STAGE,
     goals: 0,
     streak: 0,
     crowd: null,
@@ -62,11 +65,11 @@ export function gaugePos(g, key) {
 }
 
 export function newScenario(g) {
-  const k = g.kick;
-  // distance to goal line - always well clear of the penalty box, since a
-  // free kick taken from inside it would actually be a penalty/indirect kick
-  g.D = rnd(PENALTY_BOX_DEPTH + 2.5, PENALTY_BOX_DEPTH + 12);
-  g.gx = rnd(-5.2, 5.2); // goal centre offset (angle of the free kick)
+  // the kick spot is pinned by the stage table - all tries of a stage are
+  // taken from the exact same place; only wind/wall/keeper noise re-roll
+  const st = STAGES[g.stage - 1];
+  g.D = st.d;
+  g.gx = st.gx;
   g.wallZ = Math.min(9.15, g.D * 0.5);
   const n = Math.random() < 0.5 ? 4 : Math.random() < 0.5 ? 3 : 5;
   const nearPostAim = g.gx - Math.sign(g.gx || 1) * 1.7;
@@ -76,9 +79,8 @@ export function newScenario(g) {
   g.wallWillJump = Math.random() < 0.8;
   g.wallJumpT = 0;
   g.wallJh = 0;
-  // wind ramps up over the session, capped at MAX_WIND_KMH
-  const maxWindKmh = MAX_WIND_KMH * (0.4 + 0.6 * (k / TOTAL_KICKS));
-  const maxW = maxWindKmh / 26;
+  // wind re-rolls each try, capped by the stage's difficulty band
+  const maxW = st.maxWindKmh / WIND_UNIT_KMH;
   g.wind = rnd(-maxW, maxW);
   g.windAx = g.wind * 3.1;
   // keeper
@@ -88,13 +90,13 @@ export function newScenario(g) {
   g.kpTarget = g.kpX;
   g.kpAngle = 0;
   g.kpLift = 0;
-  g.kpSigma = Math.max(0.35, 1.45 - k * 0.11); // prediction error shrinks
+  g.kpSigma = STAGE_KP_SIGMA;
   // ball + gauges
   g.ball = { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 };
   g.trail = [];
   g.locked = { h: null, d: null, s: null };
   g.gaugeT = 0;
-  g.gaugeSpeed = 1.05 + k * 0.07;
+  g.gaugeSpeed = STAGE_GAUGE_SPEED;
   g.t = 0;
   g.runT = 0;
   g.settleT = 0;
@@ -106,9 +108,10 @@ export function newScenario(g) {
   g.phase = "aim1";
   return {
     phase: "aim1",
-    kick: k,
+    stage: g.stage,
+    triesLeft: g.triesLeft,
     distance: Math.round(g.D),
-    windKmh: Math.round(Math.abs(g.wind) * 26),
+    windKmh: Math.round(Math.abs(g.wind) * WIND_UNIT_KMH),
     windDir: g.wind >= 0 ? 1 : -1,
     msg: null,
   };
@@ -159,8 +162,9 @@ function finishKick(g, res, hitX, hitY) {
     g.netHitY = hitY;
     g.streak += 1;
     g.goals += 1;
+    const spareTries = g.triesLeft - 1; // this try was used
     const corner = Math.abs(hitX - g.gx) > 2.75 || hitY > 1.9;
-    const bonus = (g.streak - 1) * 25 + (corner ? 50 : 0);
+    const bonus = (g.streak - 1) * 25 + spareTries * 25 + (corner ? 50 : 0);
     g.lastPoints = 100 + bonus;
     g.resultDetail = corner
       ? `Top bin! +${g.lastPoints}`
@@ -169,6 +173,7 @@ function finishKick(g, res, hitX, hitY) {
       : `+${g.lastPoints}`;
     g.score += g.lastPoints;
   } else {
+    g.triesLeft -= 1;
     g.streak = 0;
     g.lastPoints = 0;
     if (res === "SAVED") g.resultDetail = "The keeper read it";
@@ -187,6 +192,8 @@ function resultHudPatch(g) {
     score: g.score,
     goals: g.goals,
     streak: g.streak,
+    stage: g.stage,
+    triesLeft: g.triesLeft,
     msg: { title: RESULT_TITLES[g.result], sub: g.resultDetail, tone: g.result === "GOAL" ? "goal" : "miss" },
   };
 }

@@ -2,7 +2,8 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { createGameState, newScenario as physicsNewScenario, step as physicsStep, gaugePos } from "./physics";
 import { drawScene, initCrowd, resize as resizeCanvas } from "./render";
 import { createAudioController } from "./audio";
-import { TOTAL_KICKS } from "./constants";
+import { loadBests, saveRunEnd } from "./storage";
+import { TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
 
 /* ------------------------------------------------------------------
    FREE KICK LEGEND — a playable HTML prototype of the classic
@@ -37,7 +38,10 @@ export default function MagicalKicks() {
     phase: "menu",
     score: 0,
     best: 0,
-    kick: 1,
+    bestStage: 0,
+    cupWon: false,
+    stage: 1,
+    triesLeft: TRIES_PER_STAGE,
     goals: 0,
     streak: 0,
     distance: null,
@@ -61,24 +65,50 @@ export default function MagicalKicks() {
     g.score = 0;
     g.goals = 0;
     g.streak = 0;
-    g.kick = 1;
+    g.stage = 1;
+    g.triesLeft = TRIES_PER_STAGE;
     audioRef.current.sfx("whistle");
     newScenario(g);
     syncHud({ score: 0, goals: 0, streak: 0 });
   }, [newScenario, syncHud]);
 
-  const nextKick = useCallback(() => {
-    const g = G.current;
-    if (g.kick >= TOTAL_KICKS) {
-      g.phase = "gameover";
-      g.best = Math.max(g.best || 0, g.score);
+  const endRun = useCallback(
+    (phase) => {
+      const g = G.current;
+      g.phase = phase;
+      const bests = saveRunEnd({ stage: g.stage, score: g.score, won: phase === "won" });
+      g.best = bests.bestScore;
       audioRef.current.sfx("whistle");
-      syncHud({ phase: "gameover", best: g.best, msg: null });
+      syncHud({
+        phase,
+        best: bests.bestScore,
+        bestStage: bests.bestStage,
+        cupWon: bests.cupWon,
+        msg: null,
+      });
+    },
+    [syncHud]
+  );
+
+  // advances past a result: a goal moves to the next stage (or wins the cup
+  // after stage 10); a miss retries the same spot until the tries run out.
+  // triesLeft itself is decremented by physics.js's finishKick, not here.
+  const advance = useCallback(() => {
+    const g = G.current;
+    if (g.result === "GOAL") {
+      if (g.stage >= TOTAL_STAGES) {
+        endRun("won");
+      } else {
+        g.stage += 1;
+        g.triesLeft = TRIES_PER_STAGE;
+        newScenario(g);
+      }
+    } else if (g.triesLeft <= 0) {
+      endRun("gameover");
     } else {
-      g.kick += 1;
       newScenario(g);
     }
-  }, [newScenario, syncHud]);
+  }, [endRun, newScenario]);
 
   /* --------------------------- interaction ------------------------- */
   const onAction = useCallback(() => {
@@ -111,15 +141,16 @@ export default function MagicalKicks() {
         syncHud({ phase: "flight" });
         break;
       case "result":
-        nextKick();
+        advance();
         break;
       case "gameover":
+      case "won":
         startGame();
         break;
       default:
         break;
     }
-  }, [nextKick, startGame, syncHud]);
+  }, [advance, startGame, syncHud]);
 
   // driven every animation frame (not through React state) so the marker
   // glides smoothly while a gauge is oscillating, without a 60fps re-render
@@ -189,10 +220,43 @@ export default function MagicalKicks() {
     };
   }, [onAction, syncHud]);
 
+  // persisted run records (best stage/score, cup won) load once on mount;
+  // declared after the loop effect so G.current exists by the time it runs
+  useEffect(() => {
+    const bests = loadBests();
+    G.current.best = bests.bestScore;
+    syncHud({ best: bests.bestScore, bestStage: bests.bestStage, cupWon: bests.cupWon });
+  }, [syncHud]);
+
   /* ------------------------------- ui ------------------------------ */
   // the ball button is the sole trigger for every phase transition; it's
   // only live while there's actually something for onAction to do
-  const ballLive = ["menu", "aim1", "aim2", "aim3", "result", "gameover"].includes(hud.phase);
+  const ballLive = ["menu", "aim1", "aim2", "aim3", "result", "gameover", "won"].includes(hud.phase);
+
+  // persisted-record line shared by the menu / game-over / win overlays
+  const bestLine =
+    hud.bestStage > 0 ? (
+      <div className="mt-3 text-xs text-slate-300 bg-slate-900/70 border border-slate-600/50 rounded-full px-4 py-1.5 font-semibold">
+        {hud.cupWon && (
+          <span role="img" aria-label="Cup winner" className="mr-1.5">
+            🏆
+          </span>
+        )}
+        Best run: stage <span className="text-amber-300 font-bold">{hud.bestStage}/{TOTAL_STAGES}</span> ·{" "}
+        <span className="text-amber-300 font-bold">{hud.best}</span> pts
+      </div>
+    ) : null;
+
+  // what tapping ⚽ on the result banner will do next
+  const clearedFinalStage = hud.msg?.tone === "goal" && hud.stage >= TOTAL_STAGES;
+  const resultPrompt =
+    hud.msg?.tone === "goal"
+      ? clearedFinalStage
+        ? "TAP ⚽ TO CLAIM THE CUP"
+        : `TAP ⚽ FOR STAGE ${hud.stage + 1}`
+      : hud.triesLeft > 0
+      ? "TAP ⚽ TO RETRY"
+      : "TAP ⚽ · FULL TIME";
 
   const toggleMute = (e) => {
     e.stopPropagation();
@@ -233,8 +297,14 @@ export default function MagicalKicks() {
                 : hud.phase === "aim3"
                 ? "Lock swerve and strike"
                 : hud.phase === "result"
-                ? "Next kick"
-                : hud.phase === "gameover"
+                ? hud.msg?.tone === "goal"
+                  ? clearedFinalStage
+                    ? "Claim the cup"
+                    : "Start next stage"
+                  : hud.triesLeft > 0
+                  ? "Retry this stage"
+                  : "See final result"
+                : hud.phase === "gameover" || hud.phase === "won"
                 ? "Play again"
                 : "Kick off"
             }
@@ -257,6 +327,11 @@ export default function MagicalKicks() {
                 }`}
                 style={{ animation: "popIn .35s ease-out both" }}
               >
+                {hud.msg.tone === "goal" && (
+                  <div className="text-center text-[10px] tracking-[0.4em] font-bold opacity-90 mb-1">
+                    STAGE {hud.stage} CLEAR
+                  </div>
+                )}
                 <div
                   className="text-4xl sm:text-6xl text-center"
                   style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
@@ -264,9 +339,14 @@ export default function MagicalKicks() {
                   {hud.msg.title}
                 </div>
                 <div className="text-center text-sm sm:text-base font-semibold mt-1 opacity-90">{hud.msg.sub}</div>
+                {hud.msg.tone === "miss" && hud.triesLeft > 0 && (
+                  <div className="text-center text-[10px] tracking-[0.4em] font-bold opacity-90 mt-1.5">
+                    {hud.triesLeft} {hud.triesLeft === 1 ? "TRY" : "TRIES"} LEFT
+                  </div>
+                )}
               </div>
               <div className="mt-4 text-slate-200/80 text-xs font-semibold tracking-widest bg-slate-950/60 rounded-full px-4 py-1.5">
-                TAP ⚽ FOR NEXT KICK
+                {resultPrompt}
               </div>
             </div>
           )}
@@ -281,43 +361,77 @@ export default function MagicalKicks() {
                 <span className="text-blue-400">LEGEND</span>
               </h1>
               <p className="mt-4 max-w-md text-slate-300 text-sm sm:text-base">
-                Three taps, one magical kick. Lock the <b className="text-blue-300">height</b>, the{" "}
-                <b className="text-blue-300">direction</b>, then the <b className="text-blue-300">swerve</b> — and mind
+                A cup run of <b className="text-amber-300">{TOTAL_STAGES} stages</b>, {TRIES_PER_STAGE} tries each: score
+                to advance, miss them all and the run is over. Lock the <b className="text-blue-300">height</b>, the{" "}
+                <b className="text-blue-300">direction</b>, then the <b className="text-blue-300">swerve</b> - and mind
                 the wind, the wall and the keeper.
               </p>
+              {bestLine}
               <div
                 className="mt-6 anim bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30"
                 style={{ animation: "floaty 2.4s ease-in-out infinite" }}
               >
                 TAP ⚽ TO KICK OFF
               </div>
-              <div className="mt-3 text-[11px] text-slate-500">Space or Enter works too · {TOTAL_KICKS} free kicks per match</div>
+              <div className="mt-3 text-[11px] text-slate-500">
+                Space or Enter works too · clear stage {TOTAL_STAGES} to win the cup
+              </div>
             </div>
           )}
 
           {/* game over */}
           {hud.phase === "gameover" && (
             <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">FULL TIME</div>
+              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">CUP RUN OVER</div>
               <div className="text-5xl sm:text-6xl text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
                 {hud.score}
               </div>
               <div className="text-slate-300 text-sm mt-1 font-semibold">
-                {hud.goals}/{TOTAL_KICKS} kicks scored
+                Knocked out on stage {hud.stage}/{TOTAL_STAGES}
               </div>
-              <div className="mt-2 text-xs text-slate-400">
-                Session best: <span className="text-amber-300 font-bold">{hud.best}</span>
-              </div>
+              {bestLine}
               <div className="mt-2 text-sm text-blue-200 font-semibold">
-                {hud.goals >= 8
-                  ? "Divine. The number 10 shirt is yours."
-                  : hud.goals >= 5
+                {hud.stage >= 9
+                  ? "Agonisingly close to the cup."
+                  : hud.stage >= 6
                   ? "A proper dead-ball specialist."
-                  : hud.goals >= 3
+                  : hud.stage >= 3
                   ? "Keep practising those curlers."
                   : "The wall sends its regards."}
               </div>
               <div className="mt-6 bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30">
+                TAP ⚽ TO PLAY AGAIN
+              </div>
+            </div>
+          )}
+
+          {/* cup won */}
+          {hud.phase === "won" && (
+            <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6">
+              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
+              <div
+                className="text-7xl sm:text-8xl anim"
+                style={{
+                  animation: "floaty 2.4s ease-in-out infinite",
+                  filter: "drop-shadow(0 0 24px rgba(251,191,36,.55))",
+                }}
+              >
+                🏆
+              </div>
+              <h2
+                className="mt-3 text-4xl sm:text-6xl text-amber-300 leading-none"
+                style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+              >
+                CUP WINNER
+              </h2>
+              <div className="mt-3 text-slate-300 text-sm font-semibold">
+                Final score{" "}
+                <span className="text-white text-2xl font-bold align-middle ml-1" style={ARCHIVO}>
+                  {hud.score}
+                </span>
+              </div>
+              {bestLine}
+              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
                 TAP ⚽ TO PLAY AGAIN
               </div>
             </div>
@@ -343,10 +457,25 @@ export default function MagicalKicks() {
                 )}
               </div>
               <div className="flex items-center gap-1.5">
-                <span className={STAT_LABEL_CLS}>KICK</span>
+                <span className={STAT_LABEL_CLS}>STAGE</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
-                  {hud.kick}
-                  <span className="text-slate-500 text-xs">/{TOTAL_KICKS}</span>
+                  {hud.stage}
+                  <span className="text-slate-500 text-xs">/{TOTAL_STAGES}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={STAT_LABEL_CLS}>TRIES</span>
+                <span
+                  className="flex items-center gap-1"
+                  role="img"
+                  aria-label={`${hud.triesLeft} of ${TRIES_PER_STAGE} tries left`}
+                >
+                  {Array.from({ length: TRIES_PER_STAGE }, (_, i) => (
+                    <span
+                      key={i}
+                      className={`w-2 h-2 rounded-full ${i < hud.triesLeft ? "bg-amber-400" : "bg-slate-700"}`}
+                    />
+                  ))}
                 </span>
               </div>
             </div>
