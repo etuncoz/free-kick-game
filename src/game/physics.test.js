@@ -23,6 +23,7 @@ function flightState({ stage = 1, triesLeft = TRIES_PER_STAGE, streak = 0, aimX 
   g.flightT = 0;
   g.curlAx = 0;
   g.windAx = 0;
+  g.windAz = 0;
   g.kpDelay = 99; // keeper never starts his dive within one step
   g.kpX = g.kpStart = g.kpTarget = g.gx + 3.3;
   g.ball = { x: aimX ?? g.gx, y: 1.0, z: g.D - 0.3, vx: 0, vy: 0, vz: 25, spin: 0 };
@@ -49,7 +50,7 @@ describe("newScenario (stage mode)", () => {
         const g = createGameState();
         g.stage = i + 1;
         newScenario(g);
-        expect(Math.abs(g.wind) * WIND_UNIT_KMH).toBeLessThanOrEqual(st.maxWindKmh + 1e-9);
+        expect(Math.hypot(g.windX, g.windZ) * WIND_UNIT_KMH).toBeLessThanOrEqual(st.maxWindKmh + 1e-9);
       }
     });
   });
@@ -57,8 +58,22 @@ describe("newScenario (stage mode)", () => {
   it("is windless on stage 1", () => {
     const g = createGameState();
     newScenario(g);
-    expect(g.wind).toBe(0);
+    expect(g.windX).toBe(0);
+    expect(g.windZ).toBe(0);
     expect(g.windAx).toBe(0);
+    expect(g.windAz).toBe(0);
+  });
+
+  it("wind blows from all compass quadrants over many rolls", () => {
+    const quadrants = new Set();
+    for (let roll = 0; roll < 400 && quadrants.size < 4; roll++) {
+      const g = createGameState();
+      g.stage = 10;
+      newScenario(g);
+      if (g.windX === 0 && g.windZ === 0) continue;
+      quadrants.add(`${g.windX >= 0 ? "E" : "W"}${g.windZ >= 0 ? "N" : "S"}`);
+    }
+    expect(quadrants.size).toBe(4);
   });
 
   it("uses the constant keeper skill and gauge speed every stage", () => {
@@ -135,6 +150,7 @@ describe("aiming and swerve (original-game feel)", () => {
     launch(g);
     g.wallHalf = -99;
     g.windAx = 0;
+    g.windAz = 0;
     g.kpX = g.kpStart = g.kpTarget = g.gx - 14;
     g.kpDiveAngle = 0;
     let maxX = 0;
@@ -176,6 +192,27 @@ describe("aiming and swerve (original-game feel)", () => {
     expect(maxX).toBeGreaterThan(0.7); // it visibly leaves the aim line
     expect(g.result).toBe("GOAL"); // ...and still arrives on target
     expect(Math.abs(g.netHitX - g.gx)).toBeLessThan(1.0);
+  });
+
+  it("tailwind carries the ball to the goal faster than headwind", () => {
+    const flightSteps = (windAz) => {
+      const g = createGameState();
+      newScenario(g);
+      g.locked = { h: 0.35, d: 0, s: 0 };
+      launch(g);
+      g.wallHalf = -99;
+      g.windAx = 0;
+      g.windAz = windAz;
+      g.kpX = g.kpStart = g.kpTarget = g.gx - 14;
+      g.kpDiveAngle = 0;
+      let steps = 0;
+      while (!g.result && steps < 400) {
+        step(g, 1 / 60);
+        steps++;
+      }
+      return steps;
+    };
+    expect(flightSteps(2.0)).toBeLessThan(flightSteps(-2.0));
   });
 
   it("stages vary horizontally in both directions, not just in distance", () => {

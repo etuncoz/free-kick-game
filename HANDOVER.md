@@ -177,7 +177,7 @@ v  = 20.5 + (1−h)·3.5                // low shots are slightly faster
 φ  = atan2(gx,D) + d·cone            // DIRECTION gauge; cone = atan(GOAL_HALF/D)/DIR_GOAL_WINDOW
 curl accel  = −s·CURL_ACCEL (12.5)   // SWERVE gauge (s ∈ [−1,1]) - see below, it's a banana
 v0x        += s·CURL_ACCEL·T/2       // launch compensation: bows out, returns to the aim line
-wind accel  = wind·3.1 m/s² (lateral)
+wind accel  = (windX, windZ)·3.1 m/s²  // compass wind: lateral + head/tailwind
 gravity 9.81, light per-axis drag (0.04–0.06 · v)
 ground bounce: restitution 0.45 (daisy-cutters are possible and intended)
 ```
@@ -256,12 +256,18 @@ The DISTANCE stat shown in the HUD (see "HUD & interaction model" above) is this
 and set once per try via `newScenario`'s returned patch — it is *not* a live read of the ball's
 current distance from the goal during flight.
 
-Wind rolls per try within the stage's cap, converted to the internal unit via `WIND_UNIT_KMH = 26`
-(1 internal wind unit displays as 26 km/h):
+Wind rolls per try within the stage's cap and blows **from any compass direction** (added in a
+later session): a magnitude `rnd(0, maxW)` plus a uniform angle, split into `windX` (crosswind,
+pushes the ball sideways) and `windZ` (head/tailwind, slows or carries the ball via `vz`).
+`WIND_UNIT_KMH = 26` converts the internal unit for display (1 unit = 26 km/h); the HUD shows the
+magnitude plus a compass arrow rotated by the bearing (up = toward the goal).
+The keeper's analytic prediction accounts for the crosswind but **not** the head/tailwind's
+effect on arrival time — a small, intentional source of keeper error in strong along-pitch wind.
 
 ```js
 maxW = st.maxWindKmh / WIND_UNIT_KMH;
-g.wind = rnd(-maxW, maxW);
+mag = rnd(0, maxW);  ang = rnd(0, 2π);
+g.windX = mag·sin(ang);  g.windZ = mag·cos(ang);
 ```
 
 ### Scoring
@@ -309,7 +315,7 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 | Base speed | `launch` | 20.5–24 m/s | Flight time (~1.1–1.4 s to goal) |
 | `DIR_GOAL_WINDOW` | `constants.js` | 0.35 | Fraction of the DIRECTION gauge the goal occupies (static, centred); the sweep cone rescales per stage around it |
 | `CURL_ACCEL` | `constants.js` | 12.5 | Banana strength: curl accel one way + launch offset the other, returning to the aim line |
-| `windAx` | `newScenario` | `wind · 3.1` | Wind influence |
+| `windAx` / `windAz` | `newScenario` | `windX·3.1` / `windZ·3.1` | Compass wind influence: crosswind and head/tailwind |
 | `WIND_UNIT_KMH` | `constants.js` | `26` | Display conversion: 1 internal wind unit = 26 km/h |
 | Goal points | `finishKick` | `100 + (streak−1)·25 + spareTries·25 (+50 top bin)` | Reward shape: first-try clears and streaks pay most |
 | `kpDelay` | `launch` | 0.24 s | Keeper reaction time |

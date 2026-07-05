@@ -46,7 +46,7 @@ export default function MagicalKicks() {
     streak: 0,
     distance: null,
     windKmh: 0,
-    windDir: 1,
+    windDeg: 0,
     msg: null,
     muted: false,
   });
@@ -490,7 +490,17 @@ export default function MagicalKicks() {
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>WIND</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
-                  <span className="text-cyan-300">{hud.windDir > 0 ? "→" : "←"}</span> {hud.windKmh}
+                  {/* compass arrow: up = blowing toward the goal, right =
+                      blowing right across the pitch, down = into your face */}
+                  <span
+                    className="inline-block text-cyan-300"
+                    style={{ transform: `rotate(${hud.windDeg}deg)` }}
+                    role="img"
+                    aria-label={`Wind bearing ${hud.windDeg} degrees`}
+                  >
+                    ↑
+                  </span>{" "}
+                  {hud.windKmh}
                   <span className="text-slate-500 text-xs">km/h</span>
                 </span>
               </div>

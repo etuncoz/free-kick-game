@@ -60,8 +60,10 @@ export function createGameState() {
     kpLift: 0,
     kpDiveAngle: 0,
     kpDiveLift: 0,
-    wind: 0,
+    windX: 0,
+    windZ: 0,
     windAx: 0,
+    windAz: 0,
     netRipple: 0,
     netHitX: 0,
     netHitY: 0,
@@ -97,10 +99,16 @@ export function newScenario(g) {
   g.wallWillJump = Math.random() < 0.8;
   g.wallJumpT = 0;
   g.wallJh = 0;
-  // wind re-rolls each try, capped by the stage's difficulty band
+  // wind re-rolls each try, capped by the stage's difficulty band. It blows
+  // from any compass direction: the x component pushes the ball sideways,
+  // the z component is head/tailwind (0 rad = blowing toward the goal).
   const maxW = st.maxWindKmh / WIND_UNIT_KMH;
-  g.wind = rnd(-maxW, maxW);
-  g.windAx = g.wind * 3.1;
+  const windMag = rnd(0, maxW);
+  const windAng = rnd(0, Math.PI * 2);
+  g.windX = windMag * Math.sin(windAng);
+  g.windZ = windMag * Math.cos(windAng);
+  g.windAx = g.windX * 3.1;
+  g.windAz = g.windZ * 3.1;
   // keeper
   g.kpX = g.gx + Math.sign(g.gx || (Math.random() < 0.5 ? 1 : -1)) * 0.45;
   g.kpX = clamp(g.kpX, g.gx - 2.2, g.gx + 2.2);
@@ -129,8 +137,10 @@ export function newScenario(g) {
     stage: g.stage,
     triesLeft: g.triesLeft,
     distance: Math.round(g.D),
-    windKmh: Math.round(Math.abs(g.wind) * WIND_UNIT_KMH),
-    windDir: g.wind >= 0 ? 1 : -1,
+    windKmh: Math.round(Math.hypot(g.windX, g.windZ) * WIND_UNIT_KMH),
+    // compass bearing for the HUD arrow: 0° blows toward the goal (up on
+    // screen), 90° blows right, 180° back at the kicker
+    windDeg: Math.round((Math.atan2(g.windX, g.windZ) * 180) / Math.PI),
     msg: null,
   };
 }
@@ -272,10 +282,12 @@ export function step(g, dt) {
       const prevX = b.x;
       const prevY = b.y;
       const prevZ = b.z;
-      const ax = (g.curlAx || 0) * (g.phase === "flight" ? 1 : 0) + (g.phase === "flight" ? g.windAx : 0);
+      const inFlight = g.phase === "flight";
+      const ax = (inFlight ? g.curlAx || 0 : 0) + (inFlight ? g.windAx : 0);
+      const az = inFlight ? g.windAz : 0; // head/tailwind
       b.vx += ax * h - 0.06 * b.vx * h;
       b.vy += -9.81 * h - 0.04 * b.vy * h;
-      b.vz += -0.06 * b.vz * h;
+      b.vz += az * h - 0.06 * b.vz * h;
       b.x += b.vx * h;
       b.y += b.vy * h;
       b.z += b.vz * h;
