@@ -46,6 +46,23 @@ export const DIR_GOAL_WINDOW = 0.35;
 // curls back to land on the aimed line - the classic banana.
 export const CURL_ACCEL = 12.5;
 
+// perfect-lock sweet spots, as gauge fractions (0..1), drawn as gold bands.
+// HEIGHT: the textbook rising strike. DIRECTION: two bands just inside each
+// post - picking a corner is perfect, shooting at the keeper is not.
+// SWERVE: the clean straight hit, deliberately in tension with the curl
+// misread (pure striker vs curler are two viable styles).
+export const PERFECT_BANDS = {
+  h: [0.36, 0.44],
+  d: [
+    [0.5 - DIR_GOAL_WINDOW / 2, 0.5 - DIR_GOAL_WINDOW / 2 + 0.05],
+    [0.5 + DIR_GOAL_WINDOW / 2 - 0.05, 0.5 + DIR_GOAL_WINDOW / 2],
+  ],
+  s: [0.47, 0.53],
+};
+export const PERFECT_POINTS = 25; // per perfect lock, paid on a goal
+export const PURE_STRIKE_POINTS = 100; // all three perfect, on top
+export const PURE_STRIKE_SPEED_BONUS = 1.2; // m/s extra launch speed
+
 export const rnd = (a, b) => a + Math.random() * (b - a);
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;

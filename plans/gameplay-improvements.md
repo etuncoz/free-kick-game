@@ -81,24 +81,40 @@ One pre-existing test updated: "constant keeper skill every stage" now expects t
 Tests 25 → 30; E2E verified banner copy, next-stage prompt, and the six-man non-jumping wall on stage 4 (screenshot reviewed); build green.
 
 ## Phase 4: Perfect-lock sweet spots + PURE STRIKE
-Status: Not started
+Status: Complete
 
-- [ ] `constants.js`: add `PERFECT_BANDS` (`h: [0.36, 0.44]`, `d`: corner bands `[0.5 - 0.175, 0.5 - 0.175 + 0.05]` and mirrored right band just inside each post edge, `s: [0.47, 0.53]`) and `PURE_STRIKE_SPEED_BONUS = 1.2`, `PERFECT_POINTS = 25`, `PURE_STRIKE_POINTS = 100`.
-- [ ] `physics.js`: a `perfectLock(key, value)` helper evaluating the bands (d checks both corner bands); track `g.perfects = { h, d, s }` set at each lock (populated from the component via a pure function, or computed in `launch()` from `g.locked` - prefer computing all three in `launch()` to keep physics the owner); PURE STRIKE adds `PURE_STRIKE_SPEED_BONUS` to launch speed; `finishKick` GOAL branch adds `PERFECT_POINTS` per perfect + `PURE_STRIKE_POINTS` if all three, appending "Pure strike!" to the result detail.
-- [ ] `MagicalKicks.jsx`: draw the gold bands on all three gauge tracks (two slivers on DIRECTION); flash the gauge label gold on a perfect lock (DOM-imperative like the markers, or a brief CSS class toggle on lock - locks happen at React-event time so setState is fine).
-- [ ] Unit tests: band membership per gauge (both corner bands on d); goal scoring with 0/1/3 perfects pays the right totals; pure strike raises launch speed; no bonus on a miss.
-- [ ] E2E: lock all three inside the bands via `window.__game` (set `locked` directly pre-launch), force the goal-plane crossing, assert the score includes the bonuses and the banner mentions the pure strike; screenshot the gauges showing the gold bands.
-- [ ] HANDOVER.md: flight model + scoring + §5 knobs; `npm test` + build green; commit and push.
+- [x] `constants.js`: add `PERFECT_BANDS` (`h: [0.36, 0.44]`, `d`: corner bands `[0.5 - 0.175, 0.5 - 0.175 + 0.05]` and mirrored right band just inside each post edge, `s: [0.47, 0.53]`) and `PURE_STRIKE_SPEED_BONUS = 1.2`, `PERFECT_POINTS = 25`, `PURE_STRIKE_POINTS = 100`.
+- [x] `physics.js`: a `perfectLock(key, value)` helper evaluating the bands (d checks both corner bands); `g.perfects = { h, d, s }` computed in `launch()` from `g.locked` (physics owns the verdict); PURE STRIKE adds `PURE_STRIKE_SPEED_BONUS` to launch speed; `finishKick` GOAL branch adds `PERFECT_POINTS` per perfect + `PURE_STRIKE_POINTS` if all three, leading the result detail with "Pure strike!".
+- [x] `MagicalKicks.jsx`: draw the gold bands on all three gauge tracks (two slivers on DIRECTION); locked markers/labels turn gold on a perfect lock via `updateGaugeDom` (per-frame, same imperative path as the markers).
+- [x] Unit tests: band membership per gauge (both corner bands on d); goal scoring with 0/1/3 perfects pays the right totals; pure strike raises launch speed; no bonus on a miss.
+- [x] E2E: lock all three inside the bands via `window.__game` (set `locked` directly pre-launch), force the goal-plane crossing, assert the score includes the bonuses and the banner mentions the pure strike; screenshot the gauges showing the gold bands.
+- [x] HANDOVER.md: flight model + scoring + §5 knobs; `npm test` + build green; commit and push.
 
 ### Verification Plan
 - `npx vitest run` passes including sweet-spot tests.
 - Playwright screenshot shows the gold bands; scripted pure-strike goal pays 25·3 + 100 extra points.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-05.
+`PERFECT_BANDS`/`PERFECT_POINTS`/`PURE_STRIKE_POINTS`/`PURE_STRIKE_SPEED_BONUS` in `constants.js`; `perfectLock()` exported from `physics.js`; `launch()` computes `g.perfects`/`g.pureStrike` from the locked gauge values (`d`/`s` converted back to 0..1 gauge fractions) and adds the speed bonus; `finishKick` pays `+25` per perfect and `+100` for the pure strike on goals only, with "Pure strike!" leading the banner detail.
+UI: gold band divs on all three tracks (DIRECTION renders its two corner bands from the same constant), and `updateGaugeDom` turns a locked marker + label gold when the locked value sits in a band - no new state, just the existing per-frame imperative path.
+Design note: DIRECTION's perfect is the corners (not the centre - that's keeper territory), and SWERVE's perfect is dead-straight, deliberately opposed to the Phase 1 curl misread so "pure striker" and "curler" are distinct viable styles.
+Tests 30 → 35. E2E: locking `{h: 0.4, d: -0.3, s: 0}` through the real launch computed a pure strike, the goal paid exactly 375 (100 + 4·25 spare + 3·25 perfects + 100 pure), banner verified, gold bands screenshot reviewed.
+The full-run regression script needed its gauge locks made deterministic and non-perfect (timing-based locks could randomly land in a band and shift the exact totals it asserts) - updated in the scratchpad copy; worth knowing if the HANDOVER §10 pattern is recreated.
 
 ## Final Recap
-_(write when all phases complete: summary of the entire piece of work)_
+All four confirmed improvements landed (2026-07-05), one commit per phase as requested:
+1. **Curl misread** (`635b7fd`): `KP_CURL_MISREAD = 1.0` m - the keeper commits toward the bow side of swerved balls, making bending it into corners a genuine keeper-beating tool; straight shots unchanged.
+2. **Ghost try marks** (`7d75f45`): every finished try leaves a fading amber X (goal-plane crossing or wall impact) visible while lining up the retry; cleared on fresh stages. Also fixed a `-0` flaky test.
+3. **Stage personalities** (`eb95592`): `STAGES` gained names + `mods` (wallN / wallJumpChance / kpSigma / windMinFrac); five gimmick stages (THE CAT, THE GREAT WALL, SWIRLING GALE, THE FORTRESS, THE FINAL); names surface in the info bar, clear banner, and next-stage prompt. (This commit also carried the user's independent `plans/github-pages-deploy.md`.)
+4. **Perfect locks + PURE STRIKE** (final phase commit): visible gold bands, +25 per perfect, +100 and +1.2 m/s for all three, corners-are-perfect direction design.
+Test suite grew 19 → 35 across the batch; the 34-check full-run Playwright regression passes on the final state; HANDOVER.md updated per phase.
+Outstanding: all four features are balance-tuned by construction, not by play - the standing HANDOVER §6 caveat (no human playtest) now covers these too. The obvious next knobs if play feels off: `KP_CURL_MISREAD`, band widths in `PERFECT_BANDS`, and the gimmick values in `STAGES[].mods`.
 
 ## Deployment Plan
-_(write when all phases complete: step-by-step deployment instructions)_
+Static Vite site, no backend, no data migrations; nothing about deployment changed in this batch.
+1. `npm test` (35/35) and `npm run build` both pass on the final state - verified.
+2. All four phases are committed and pushed to `main` at `https://github.com/etuncoz/free-kick-game.git`.
+3. To ship: serve `dist/` from any static host (`npm run build`, upload), or follow `plans/github-pages-deploy.md` (separate, not-started plan) for GitHub Pages via Actions.
+4. localStorage keys are unchanged (`fkl.*`) - existing visitors keep their records; new scoring bonuses only affect new runs.
+5. Post-deploy sanity: play one kick locking inside a gold band and confirm the gold marker + (on a goal) the bonus points appear.

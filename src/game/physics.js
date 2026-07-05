@@ -4,6 +4,10 @@ import {
   DIR_GOAL_WINDOW,
   GOAL_H,
   GOAL_HALF,
+  PERFECT_BANDS,
+  PERFECT_POINTS,
+  PURE_STRIKE_POINTS,
+  PURE_STRIKE_SPEED_BONUS,
   STAGES,
   STAGE_GAUGE_SPEED,
   STAGE_KP_SIGMA,
@@ -62,6 +66,8 @@ export function createGameState() {
     locked: { h: null, d: null, s: null },
     gaugeT: 0,
     gaugeSpeed: 1.1,
+    perfects: { h: false, d: false, s: false },
+    pureStrike: false,
     kpX: 0,
     kpStart: 0,
     kpTarget: 0,
@@ -85,6 +91,14 @@ export function createGameState() {
 export function gaugePos(g, key) {
   const mult = key === "s" ? 1.15 : 1;
   return ping(g.gaugeT * g.gaugeSpeed * mult);
+}
+
+// was this gauge locked inside its gold sweet-spot band? `gaugeV` is the
+// 0..1 gauge position (DIRECTION has a corner band inside each post).
+export function perfectLock(key, gaugeV) {
+  const band = PERFECT_BANDS[key];
+  if (key === "d") return band.some(([a, b]) => gaugeV >= a && gaugeV <= b);
+  return gaugeV >= band[0] && gaugeV <= band[1];
 }
 
 export function newScenario(g) {
@@ -136,6 +150,8 @@ export function newScenario(g) {
   g.ball = { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 };
   g.trail = [];
   g.locked = { h: null, d: null, s: null };
+  g.perfects = { h: false, d: false, s: false };
+  g.pureStrike = false;
   g.gaugeT = 0;
   g.gaugeSpeed = STAGE_GAUGE_SPEED;
   g.t = 0;
@@ -163,8 +179,16 @@ export function newScenario(g) {
 
 export function launch(g) {
   const { h, d, s } = g.locked;
+  // sweet spots: evaluated here (physics owns the verdict) from the locked
+  // gauge positions; a PURE STRIKE (all three) also flies faster
+  g.perfects = {
+    h: perfectLock("h", h),
+    d: perfectLock("d", (d + 1) / 2),
+    s: perfectLock("s", (s + 1) / 2),
+  };
+  g.pureStrike = g.perfects.h && g.perfects.d && g.perfects.s;
   const theta = ((3 + h * 32) * Math.PI) / 180; // elevation
-  const speed = 20.5 + (1 - h) * 3.5;
+  const speed = 20.5 + (1 - h) * 3.5 + (g.pureStrike ? PURE_STRIKE_SPEED_BONUS : 0);
   // DIRECTION sweeps a cone around the goal centre, sized so the goal mouth
   // always covers the same fixed fraction of the gauge (DIR_GOAL_WINDOW) -
   // the gauge picture never changes between stages, while full deflection
@@ -245,9 +269,17 @@ function finishKick(g, res, hitX, hitY) {
     const spareTries = g.triesLeft - 1; // this try was used
     // "top bin": the outer ~quarter of the frame, scaled with the goal size
     const corner = Math.abs(hitX - g.gx) > GOAL_HALF * 0.75 || hitY > GOAL_H * 0.78;
-    const bonus = (g.streak - 1) * 25 + spareTries * 25 + (corner ? 50 : 0);
+    const perfectCount = (g.perfects.h ? 1 : 0) + (g.perfects.d ? 1 : 0) + (g.perfects.s ? 1 : 0);
+    const bonus =
+      (g.streak - 1) * 25 +
+      spareTries * 25 +
+      (corner ? 50 : 0) +
+      perfectCount * PERFECT_POINTS +
+      (g.pureStrike ? PURE_STRIKE_POINTS : 0);
     g.lastPoints = 100 + bonus;
-    g.resultDetail = corner
+    g.resultDetail = g.pureStrike
+      ? `Pure strike! +${g.lastPoints}`
+      : corner
       ? `Top bin! +${g.lastPoints}`
       : g.streak > 1
       ? `Streak x${g.streak}  +${g.lastPoints}`

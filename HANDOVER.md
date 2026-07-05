@@ -281,9 +281,22 @@ mag = rnd(0, maxW);  ang = rnd(0, 2π);
 g.windX = mag·sin(ang);  g.windZ = mag·cos(ang);
 ```
 
+### Perfect locks & PURE STRIKE (gameplay-improvements batch)
+
+Each gauge has a gold sweet-spot band (`PERFECT_BANDS` in `constants.js`, drawn on the tracks):
+HEIGHT `[0.36, 0.44]` (the textbook rising strike), DIRECTION two corner bands just inside each
+post (picking a corner is perfect, shooting at the keeper is not), SWERVE `[0.47, 0.53]` (the
+clean straight hit — deliberately in tension with the curl misread, so "pure striker" and
+"curler" are two viable styles).
+`launch()` evaluates the locked values via `perfectLock()` into `g.perfects`/`g.pureStrike`; a
+pure strike (all three) also adds `PURE_STRIKE_SPEED_BONUS` (1.2 m/s) to the launch speed.
+Locked markers/labels turn gold on a perfect lock (`updateGaugeDom`).
+Bonuses pay only on a goal: `+25` per perfect, `+100` more for the pure strike, and the banner
+leads with "Pure strike!".
+
 ### Scoring
 
-Goal = `100 + (streak−1)·25 + spareTries·25 (+ 50 "top bin" bonus if |x−gx| > 0.75·GOAL_HALF or y > 0.78·GOAL_H)`,
+Goal = `100 + (streak−1)·25 + spareTries·25 + perfects·25 (+100 pure strike) (+ 50 "top bin" bonus if |x−gx| > 0.75·GOAL_HALF or y > 0.78·GOAL_H)`,
 where `spareTries` is the tries that would have remained after the scoring one — first-try goals
 are worth 100 more than fifth-try goals.
 Any non-goal resets the streak, so the streak bonus effectively rewards consecutive first-try clears.
@@ -336,7 +349,8 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 | `CURL_ACCEL` | `constants.js` | 12.5 | Banana strength: curl accel one way + launch offset the other, returning to the aim line |
 | `windAx` / `windAz` | `newScenario` | `windX·3.1` / `windZ·3.1` | Compass wind influence: crosswind and head/tailwind |
 | `WIND_UNIT_KMH` | `constants.js` | `26` | Display conversion: 1 internal wind unit = 26 km/h |
-| Goal points | `finishKick` | `100 + (streak−1)·25 + spareTries·25 (+50 top bin)` | Reward shape: first-try clears and streaks pay most |
+| Goal points | `finishKick` | `100 + (streak−1)·25 + spareTries·25 + perfects·25 (+100 pure) (+50 top bin)` | Reward shape: first-try clears, streaks and perfect execution pay most |
+| `PERFECT_BANDS` / `PERFECT_POINTS` / `PURE_STRIKE_POINTS` / `PURE_STRIKE_SPEED_BONUS` | `constants.js` | see §4 | The execution skill ceiling: gold band positions and what hitting them pays |
 | `kpDelay` | `launch` | 0.24 s | Keeper reaction time |
 | `KP_CURL_MISREAD` | `physics.js` | 1.0 m | How far a full-swerve ball beats the keeper's read (toward the bow side); distance-independent by design |
 | `KP_BODY_LEN` / `KP_SAVE_RADIUS` | `physics.js` | 1.95 m / 0.5 m | The save capsule = the keeper's drawn body (see §4) — how generous the keeper is |
