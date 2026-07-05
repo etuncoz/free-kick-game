@@ -13,6 +13,10 @@ import { TOTAL_KICKS } from "./constants";
    physics.js, canvas drawing lives in render.js, sound in audio.js.
 ------------------------------------------------------------------- */
 
+const ARCHIVO = { fontFamily: "'Archivo Black', sans-serif" };
+const STAT_LABEL_CLS = "text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold";
+const STAT_VALUE_CLS = "text-base sm:text-lg font-bold tabular-nums";
+
 const GAUGE_PHASE = { h: "aim1", d: "aim2", s: "aim3" };
 const GAUGES = [
   { key: "h", label: "1 · HEIGHT" },
@@ -328,13 +332,8 @@ export default function MagicalKicks() {
           <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5 border-b border-blue-500/20">
             <div className="flex items-center gap-4 sm:gap-6">
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">
-                  SCORE
-                </span>
-                <span
-                  className="text-base sm:text-lg font-bold tabular-nums"
-                  style={{ fontFamily: "'Archivo Black', sans-serif" }}
-                >
+                <span className={STAT_LABEL_CLS}>SCORE</span>
+                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
                   {hud.score}
                 </span>
                 {hud.streak > 1 && (
@@ -344,33 +343,27 @@ export default function MagicalKicks() {
                 )}
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">
-                  KICK
-                </span>
-                <span
-                  className="text-base sm:text-lg font-bold tabular-nums"
-                  style={{ fontFamily: "'Archivo Black', sans-serif" }}
-                >
+                <span className={STAT_LABEL_CLS}>KICK</span>
+                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
                   {hud.kick}
                   <span className="text-slate-500 text-xs">/{TOTAL_KICKS}</span>
                 </span>
               </div>
-              <div className="hidden sm:flex items-center gap-1.5">
-                <span className="text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">DISTANCE</span>
-                <span className="text-base sm:text-lg font-bold tabular-nums">
-                  {hud.distance != null ? `${hud.distance}m` : "—"}
+            </div>
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="flex items-center gap-1.5">
+                <span className={STAT_LABEL_CLS}>DISTANCE</span>
+                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                  {hud.distance != null ? hud.distance : "—"}
+                  {hud.distance != null && <span className="text-slate-500 text-xs">m</span>}
                 </span>
               </div>
-            </div>
-            <div className="flex items-center gap-3 sm:gap-4">
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold">
-                  WIND
+                <span className={STAT_LABEL_CLS}>WIND</span>
+                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                  <span className="text-cyan-300">{hud.windDir > 0 ? "→" : "←"}</span> {hud.windKmh}
+                  <span className="text-slate-500 text-xs">km/h</span>
                 </span>
-                <span className="text-sm sm:text-base font-bold text-cyan-300">
-                  {hud.windDir > 0 ? "→" : "←"}
-                </span>
-                <span className="text-xs sm:text-sm font-semibold tabular-nums">{hud.windKmh} km/h</span>
               </div>
               <button
                 onClick={toggleMute}

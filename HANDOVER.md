@@ -4,8 +4,8 @@ A playable web prototype of the classic *"Roberto Baggio's Magical Kicks"* three
 kick game, rebuilt in **React + Canvas 2D + Tailwind + Vite**.
 This document is the handover for continuing development locally (e.g. with Claude Code), and eventually porting the mechanic to a native iOS app.
 
-There is no git repository in this folder yet.
-That means this document is currently the *only* persistent record of what changed and why — treat it as such, and consider running `git init` early next session so future handovers can rely on commit history too.
+The project now lives in a git repository, pushed to `https://github.com/etuncoz/free-kick-game.git` (branch `main`).
+Commit history is the primary record of *what* changed from here on — this document is for the *why* behind decisions and design details that don't show up in a diff.
 
 ---
 
@@ -34,12 +34,11 @@ This is now a real scaffolded Vite app, not a single artifact component.
 |---|---|
 | `index.html`, `vite.config.js`, `package.json` | Standard Vite + React + Tailwind (v4, via `@tailwindcss/vite`) scaffold. |
 | `src/main.jsx`, `src/App.jsx`, `src/index.css` | App entry point. `App.jsx` just renders `MagicalKicks`. |
-| `src/game/MagicalKicks.jsx` | React shell: state, refs, the `requestAnimationFrame` loop, JSX/HUD overlay. No physics or drawing logic lives here directly — it wires the modules below together. |
+| `src/game/MagicalKicks.jsx` | React shell: state, refs, the `requestAnimationFrame` loop, JSX/HUD overlay. Also owns the DOM-based info + gauge panel below the canvas (see §4 "HUD & interaction model") and the single ⚽ button that drives every phase transition. No physics or drawing logic lives here directly — it wires the modules below together. |
 | `src/game/physics.js` | Pure game-state functions: `newScenario`, `launch`, `step` (integration + collisions + scoring), `gaugePos`. No React/DOM/audio imports — this is the file that ports to Swift verbatim (see §8). `step()` returns an event list (`{type:'sfx',name}` / `{type:'hud',patch}`) instead of calling side effects directly. |
-| `src/game/render.js` | Canvas drawing: the tilted-camera projection, sprites, pitch/goal/net, gauge HUD panel. Reads `g` but never mutates game-logic fields. |
+| `src/game/render.js` | Canvas drawing: the tilted-camera projection, sprites, pitch/goal/net. Reads `g` but never mutates game-logic fields. The gauge HUD used to be drawn here too (see §4) — it no longer is. |
 | `src/game/audio.js` | WebAudio sfx synth, exposed as `createAudioController()` returning `{ ensureAudio, sfx, setMuted }`. |
-| `src/game/constants.js` | Shared math helpers (`rnd`, `clamp`, `lerp`, `easeOut`, `ping`) and tunables (`GOAL_HALF`, `BALL_R`, `TOTAL_KICKS`, `MAX_WIND_KMH`). |
-| `magical-kicks.jsx` (repo root) | **Superseded** — the original single-file artifact component, kept only as a diff reference. Everything in it now lives in `src/game/*`. Safe to delete once you've confirmed the split version behaves the same; nobody imports it. |
+| `src/game/constants.js` | Shared math helpers (`rnd`, `clamp`, `lerp`, `easeOut`, `ping`) and tunables (`GOAL_HALF`, `BALL_R`, `TOTAL_KICKS`, `MAX_WIND_KMH`, `PENALTY_BOX_DEPTH`). |
 | `HANDOVER.md` | This document. |
 
 ## 3. Running it locally
@@ -62,9 +61,9 @@ Notes:
 
 Two worlds, deliberately separated, now split across files instead of one component:
 
-- **React state (`hud`)**, in `MagicalKicks.jsx` — only what the DOM overlay needs: phase, score, kick number, wind
-  display, result message, mute. Updated *sparingly* via `syncHud()` at state transitions,
-  never per-frame.
+- **React state (`hud`)**, in `MagicalKicks.jsx` — only what the DOM overlay needs: phase, score, kick number, distance
+  to goal, wind display, result message, mute. Updated *sparingly* via `syncHud()` at state transitions,
+  never per-frame. (The gauge markers themselves are the exception — see "HUD & interaction model" below.)
 - **Mutable game state (`G.current`)**, created by `physics.js`'s `createGameState()` — everything the 60fps loop touches: ball kinematics,
   gauge timer, keeper/wall animation state, scenario parameters. Lives in a ref so the
   `requestAnimationFrame` loop never re-renders React.
@@ -76,15 +75,53 @@ This is what keeps `physics.js` free of React and audio dependencies.
 
 ```
 menu → aim1 → aim2 → aim3 → runup → flight → settle → result → (next kick | gameover)
-                                                                  ↑ tap advances
+                                                                  ↑ ⚽ button (or Space/Enter) advances
 ```
 
-- `aim1/2/3`: gauge oscillates (`ping()` triangle wave × `gaugeSpeed`); a tap samples it via
+- `aim1/2/3`: gauge oscillates (`ping()` triangle wave × `gaugeSpeed`); pressing the ⚽ button (or Space/Enter) samples it via
   `gaugePos(g, key)` into `g.locked.{h,d,s}` and advances. `gaugePos` is the single place the CURL/SWERVE ×1.15 speed multiplier lives now (previously duplicated between the input handler and the renderer — fixed during the split).
 - `runup` (0.38 s): the kicker sprite lerps to the ball; then `launch()` fires.
 - `flight`: physics integration + collision checks each frame.
 - `settle` (1.05 s): result already decided; ball deflects/nets, ripple plays, then the banner.
-- `result`: waits for a tap → `nextKick()` or `gameover`.
+- `result`: waits for the ⚽ button → `nextKick()` or `gameover`.
+
+### HUD & interaction model (reworked in a later session)
+
+The gauge panel (HEIGHT/DIRECTION/SWERVE) used to be drawn on the canvas itself, in a fixed
+strip pinned to the bottom of the frame (`drawGauges` in `render.js`).
+With the elevated broadcast camera, the kicker and the ball both render very low in that same
+frame, so the panel sat directly on top of them — you could barely see either during `aim1/2/3`.
+That's the "kicker sprite gets overlapped by the gauge HUD panel" issue this document used to
+list under Known Issues (§6); it's now fixed by moving the whole HUD out of the canvas.
+
+The panel is now plain DOM/Tailwind markup in `MagicalKicks.jsx`, rendered in one card below the
+canvas that combines two rows:
+
+1. An info row — SCORE and KICK grouped on the left, DISTANCE and WIND (plus the mute button) on
+   the right — all sharing the same label/value text classes (`STAT_LABEL_CLS`/`STAT_VALUE_CLS`)
+   so the four stats read as one consistent set instead of four differently-sized boxes.
+2. The HEIGHT/DIRECTION/SWERVE gauge row, unchanged in behaviour from the canvas version.
+
+This card is **always mounted**, even outside `aim1/2/3` — only the gauge markers' `opacity`
+toggles per-key inside it. It used to be conditionally rendered only during the aim phases, which
+meant the whole page reflowed (grew/shrank) every time a kick started or ended; keeping it mounted
+permanently fixed that.
+
+Because the gauge markers still need to glide smoothly while a gauge is oscillating (60 fps), they
+are **not** driven through React state/re-render. `MagicalKicks.jsx` keeps `gaugeMarkerRefs` /
+`gaugeLabelRefs` (plain DOM refs, one per gauge key) and an `updateGaugeDom(g)` function that's
+called directly from the `requestAnimationFrame` loop, right after `drawScene`, and sets
+`style.left` / `style.opacity` / `style.background` imperatively. This is the same
+performance trade-off the mutable `G.current` game state already makes elsewhere (§4 intro) — the
+60 fps path never touches `setState`.
+
+The interaction model changed to match: the whole canvas used to be one big tap target
+(`onPointerDown` on the wrapping div called `onAction`). It's now a single dedicated ⚽ button,
+absolutely positioned bottom-right over the canvas (`z-20`, above the menu/result/game-over
+overlays), which is the sole trigger for every phase transition — locking each gauge, kicking off,
+advancing past a result, and playing again. It fades out and stops intercepting clicks
+(`opacity-0 pointer-events-none`) during `runup`/`flight`/`settle`, when there's nothing for it to
+do. Space/Enter still work everywhere, unchanged.
 
 ### Coordinate system & projection (rewritten this session — was a naive height-offset hack, now a proper tilted camera)
 
@@ -156,9 +193,21 @@ Corners beat him when his prediction noise pulls him off — that's the intended
 
 ### Scenario generation (`newScenario`)
 
-Per kick: distance `D ∈ [17, 26.5]` m, angle `gx ∈ [−5.2, 5.2]` m, wall of 3–5 players placed
+Per kick: distance `D ∈ [19, 28.5]` m, angle `gx ∈ [−5.2, 5.2]` m, wall of 3–5 players placed
 on the ball→near-post line at `min(9.15, D/2)`, 80 % chance the wall jumps (timed to arrive
 0.3 s before the ball).
+
+**Distance range fixed in a later session**: `D` used to roll as low as 17 m, only 0.5 m clear of
+the 16.5 m penalty box edge (`PENALTY_BOX_DEPTH` in `constants.js`) — a free kick from inside (or
+right on the edge of) the box would actually be a penalty or indirect free kick, and it read that
+way on screen too, with the box line rendering almost on top of the ball. `D` is now
+`rnd(PENALTY_BOX_DEPTH + 2.5, PENALTY_BOX_DEPTH + 12)`, i.e. always at least 2.5 m clear of the box.
+One side effect: since `D ≥ 19` now, `wallZ = min(9.15, D/2)` always resolves to the `9.15` cap
+(10 yards), which is realistic anyway — it no longer varies with `D`.
+
+The DISTANCE stat shown in the HUD (see "HUD & interaction model" above) is this same `D`, rounded
+and set once per kick via `newScenario`'s returned patch — it is *not* a live read of the ball's
+current distance from the goal during flight.
 
 **Wind is now capped this session** — previously it grew unbounded with kick number (up to ~35 km/h displayed by kick 10, which felt absurd).
 It now ramps `4.6 → 10 km/h` linearly across the 10 kicks and never exceeds `MAX_WIND_KMH = 10` (`constants.js`):
@@ -210,7 +259,6 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 
 ## 6. Known issues / rough edges
 
-- **Kicker sprite gets overlapped by the gauge HUD panel** during `aim1/2/3` in the new camera framing — his feet sit right around where the panel's bottom edge is. Not broken, just tight; worth revisiting if you touch the HUD panel layout or camera again.
 - **Keeper never saves and holds** — every save deflects; parries into the box could allow a
   rebound mechanic later.
 - **Post hits always go out**; the original occasionally let them bounce in. Easy add:
@@ -218,9 +266,10 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 - **Kicker animation is minimal** (a lerp + lean, no leg swing frames).
 - **No pause/visibility handling**: `dt` is clamped to 33 ms so tab-switching won't explode
   the physics, but a proper pause on `visibilitychange` would be cleaner.
-- **No git repository** — see the note at the top of this document. Consider `git init` + an initial commit next session before making further changes, so there's a real diff history.
-- **`magical-kicks.jsx` at the repo root is dead code** — nothing imports it, it's only kept as a reference for diffing against the split version. Safe to delete whenever you're comfortable.
-- Playtest before trusting any feel judgment baked into the constants — this session's changes were verified visually via automated screenshots (see §10), not by a human playing it.
+- **DISTANCE stat always renders in the info row now** (see §4) — it used to be hidden below the `sm` breakpoint; that hiding was removed for consistency with the other stats, but it hasn't been checked on an actual small phone yet, so watch for crowding on the narrowest supported widths.
+- Playtest before trusting any feel judgment baked into the constants.
+  The original HUD/camera rework was verified visually via automated Playwright screenshots (see §10), not by a human playing it.
+  The later HUD-relocation, ⚽-button, and penalty-box-distance changes were verified only via `npm run build` succeeding — the Chrome browser extension was unavailable in that session too, and no automated screenshot harness was set up for it. A real playtest of those changes is still outstanding.
 
 ## 7. Suggested next steps (web prototype)
 
@@ -229,8 +278,7 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 3. Difficulty/mode design: practice mode (no kick limit), sudden-death streak mode.
 4. Haptics stub: `navigator.vibrate(10)` on gauge locks — previews the iOS haptic design.
 5. Optional: replace rect-figures with sprite sheets once art direction is decided.
-6. Revisit the gauge-panel/kicker overlap noted in §6 if it bothers you in practice.
-7. Consider `git init` so future sessions get real commit history instead of relying solely on this document.
+6. Playtest the HUD relocation, ⚽ button, and penalty-box distance fix on a real device/browser (see §6) — they've only been verified via a production build, not visually.
 
 ## 8. iOS port plan (the actual goal)
 
