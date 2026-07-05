@@ -8,7 +8,7 @@ import {
   TRIES_PER_STAGE,
   WIND_UNIT_KMH,
 } from "./constants";
-import { createGameState, launch, newScenario, step } from "./physics";
+import { KP_CURL_MISREAD, createGameState, launch, newScenario, step } from "./physics";
 
 // builds a game state mid-flight, one frame away from crossing the goal
 // plane, with the keeper parked too far away to save. `aimX` is where the
@@ -220,6 +220,44 @@ describe("aiming and swerve (original-game feel)", () => {
     const rights = STAGES.filter((s) => s.gx > 3).length;
     expect(lefts).toBeGreaterThanOrEqual(3);
     expect(rights).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("late-curl keeper misread", () => {
+  // deterministic launch (gauss noise = 0) on stage 1, straight at a spot
+  // left of centre, with/without full swerve; same aim, same arrival.
+  function launched(s) {
+    const spy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const g = createGameState();
+      newScenario(g);
+      const cone = Math.atan(GOAL_HALF / g.D) / DIR_GOAL_WINDOW;
+      const d = Math.atan(-3.0 / g.D) / cone; // arrival at gx - 3.0
+      g.locked = { h: 0.35, d, s };
+      launch(g);
+      g.wallHalf = -99;
+      return g;
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  it("shifts the keeper's prediction toward the bow side at full swerve", () => {
+    const straight = launched(0);
+    const curled = launched(1);
+    // same dive pose (same predY), so the feet target moves by the misread
+    expect(curled.kpDiveAngle).toBe(straight.kpDiveAngle);
+    expect(curled.kpTarget - straight.kpTarget).toBeCloseTo(KP_CURL_MISREAD, 5);
+  });
+
+  it("the same corner aim is saved straight but beats the keeper curled", () => {
+    const results = [0, 1].map((s) => {
+      const g = launched(s);
+      for (let i = 0; i < 400 && !g.result; i++) step(g, 1 / 60);
+      return g.result;
+    });
+    expect(results[0]).toBe("SAVED"); // read perfectly without swerve
+    expect(results[1]).toBe("GOAL"); // the late break comes back inside him
   });
 });
 

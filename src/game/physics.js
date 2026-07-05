@@ -30,6 +30,14 @@ import {
 // also covers his spread arms when standing.
 export const KP_BODY_LEN = 1.95;
 export const KP_SAVE_RADIUS = 0.5;
+// how far (metres, at full swerve) the keeper misjudges a curled ball: he
+// commits toward the bow side, and the late break brings the ball back
+// inside him. This is what makes bending it a weapon against the keeper
+// and not just a way around the wall - straight shots are read perfectly
+// (minus kpSigma noise). Distance-independent on purpose: a fractional
+// under-read of the curl term would grow with T² and hand far stages an
+// enormous curl edge.
+export const KP_CURL_MISREAD = 1.0;
 
 export function createGameState() {
   return {
@@ -170,7 +178,11 @@ export function launch(g) {
   g.wallJumpT = Math.max(0.05, tWall - 0.3);
   // keeper prediction (with human error)
   const gauss = (Math.random() + Math.random() + Math.random() - 1.5) * 1.2;
-  const predX = g.ball.vx * T + 0.5 * (g.curlAx + g.windAx) * T * T + gauss * g.kpSigma;
+  const predX =
+    g.ball.vx * T +
+    0.5 * (g.curlAx + g.windAx) * T * T +
+    s * KP_CURL_MISREAD + // he buys the bow and misses the late break back
+    gauss * g.kpSigma;
   const predY = Math.max(0.2, g.ball.vy * T - 4.905 * T * T);
   const reachX = clamp(predX, g.gx - 3.35, g.gx + 3.35);
   g.kpPredY = clamp(predY, 0.2, 2.3);
@@ -233,7 +245,7 @@ function finishKick(g, res, hitX, hitY) {
     if (res === "SAVED") g.resultDetail = "The keeper read it";
     else if (res === "WALL") g.resultDetail = "Straight into the wall";
     else if (res === "POST") g.resultDetail = "Off the woodwork!";
-    else if (res === "OVER") g.resultDetail = "Row Z";
+    else if (res === "OVER") g.resultDetail = "Off the mark!";
     else g.resultDetail = "Wide of the mark";
   }
   const sfxByResult = { GOAL: "goal", SAVED: "save", WALL: "wall", POST: "post", OVER: "miss", WIDE: "miss" };

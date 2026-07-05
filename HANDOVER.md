@@ -196,8 +196,11 @@ ball offset to the right (`v0x += s·CURL_ACCEL·T/2`) while the curl accelerate
 (`−s·CURL_ACCEL`), so the path bows out around the wall and returns to the aimed line exactly at
 the goal plane (before drag).
 Peak bow ≈ `CURL_ACCEL·T²/8` ≈ 1.2–2.6 m — enough to clear the wall's half-width.
-The keeper's analytic prediction includes both terms, so they cancel there too: he reads the
-*endpoint*, which is correct and intended.
+The keeper's analytic prediction includes both terms — but with a deliberate flaw: he *misreads*
+curled balls by `s · KP_CURL_MISREAD` (1 m at full swerve) toward the bow side, as if he commits
+to where the ball seems headed mid-flight and the late break comes back inside him.
+Straight shots he reads perfectly (minus `kpSigma` noise), so swerve is the tool for beating
+good keepers into corners, not just for clearing the wall.
 
 **Ground clamp bug fixed this session**: the ground-bounce clamp used to be skipped entirely once `g.phase !== "flight"` (i.e. during `settle`), so a ball that was still falling when the result was decided (e.g. an "OVER" that arcs back down) could sink visibly below the pitch with nothing stopping it.
 The clamp now runs in both `flight` and `settle`; only the wall/goal collision-plane checks stay `flight`-only.
@@ -319,6 +322,7 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 | `WIND_UNIT_KMH` | `constants.js` | `26` | Display conversion: 1 internal wind unit = 26 km/h |
 | Goal points | `finishKick` | `100 + (streak−1)·25 + spareTries·25 (+50 top bin)` | Reward shape: first-try clears and streaks pay most |
 | `kpDelay` | `launch` | 0.24 s | Keeper reaction time |
+| `KP_CURL_MISREAD` | `physics.js` | 1.0 m | How far a full-swerve ball beats the keeper's read (toward the bow side); distance-independent by design |
 | `KP_BODY_LEN` / `KP_SAVE_RADIUS` | `physics.js` | 1.95 m / 0.5 m | The save capsule = the keeper's drawn body (see §4) — how generous the keeper is |
 | `GOAL_HALF` / `GOAL_H` | `constants.js` | 4.58 / 3.05 m | Goal frame, deliberately 1.25× regulation so scoring is easier; the keeper's reach is NOT scaled with it, so the corners are open by design |
 | Wall jump | `step` | `2.7t − 3.6t²` (peak ≈ 0.5 m) | Jump height/timing |
