@@ -42,6 +42,8 @@ export default function MagicalKicks() {
     cupWon: false,
     stage: 1,
     triesLeft: TRIES_PER_STAGE,
+    goalDir: null,
+    goalDirHalf: 0,
     goals: 0,
     streak: 0,
     distance: null,
@@ -520,7 +522,20 @@ export default function MagicalKicks() {
                     : undefined
                 }
               >
-                {key !== "h" && (
+                {/* the direction gauge sweeps the whole pitch; this goal-
+                    mouth window is the part of the sweep that actually hits
+                    the frame - aim inside it, like the original's dial */}
+                {key === "d" && hud.goalDir != null && (
+                  <div
+                    className="absolute -top-[5px] bottom-[2px] border-l-2 border-r-2 border-t-2 border-white/90 rounded-t-[3px] bg-emerald-300/25"
+                    style={{
+                      left: `${(hud.goalDir - hud.goalDirHalf) * 100}%`,
+                      width: `${hud.goalDirHalf * 200}%`,
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
+                {key === "s" && (
                   <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/60 -translate-x-1/2" />
                 )}
                 <div
@@ -530,8 +545,8 @@ export default function MagicalKicks() {
                 />
               </div>
               <div className="w-full flex justify-between mt-1 text-[9px] sm:text-[10px] font-semibold text-slate-500">
-                <span>{key === "h" ? "LOW" : "◀"}</span>
-                <span>{key === "h" ? "HIGH" : "▶"}</span>
+                <span>{key === "h" ? "LOW" : key === "s" ? "↶ LEFT" : "LEFT"}</span>
+                <span>{key === "h" ? "HIGH" : key === "s" ? "RIGHT ↷" : "RIGHT"}</span>
               </div>
             </div>
           ))}

@@ -1,12 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  GOAL_HALF,
   STAGES,
   STAGE_GAUGE_SPEED,
   STAGE_KP_SIGMA,
   TRIES_PER_STAGE,
   WIND_UNIT_KMH,
 } from "./constants";
-import { createGameState, newScenario, step } from "./physics";
+import { createGameState, launch, newScenario, step } from "./physics";
 
 // builds a game state mid-flight, one frame away from crossing the goal
 // plane, with the keeper parked too far away to save. `aimX` is where the
@@ -68,6 +69,19 @@ describe("newScenario (stage mode)", () => {
       expect(g.gaugeSpeed).toBe(STAGE_GAUGE_SPEED);
     }
   });
+
+  it("keeps the wall's player count fixed across the tries of a stage", () => {
+    for (let run = 0; run < 50; run++) {
+      const g = createGameState();
+      newScenario(g); // first try rolls the stage's wall
+      const n = g.wallN;
+      for (let miss = 0; miss < TRIES_PER_STAGE - 1; miss++) {
+        g.triesLeft -= 1;
+        newScenario(g); // retries must not re-roll it
+        expect(g.wallN).toBe(n);
+      }
+    }
+  });
 });
 
 describe("scoring (stage mode)", () => {
@@ -99,12 +113,111 @@ describe("scoring (stage mode)", () => {
 
   it("consumes a try and resets the streak on a miss", () => {
     const g = flightState({ triesLeft: 5, streak: 2, aimX: null });
-    g.ball.x = g.gx + 5.5; // well wide of the far post
+    g.ball.x = g.gx + GOAL_HALF + 2.0; // well wide of the far post
     step(g, 0.033);
     expect(g.result).toBe("WIDE");
     expect(g.triesLeft).toBe(4);
     expect(g.streak).toBe(0);
     expect(g.lastPoints).toBe(0);
     expect(g.score).toBe(0);
+  });
+});
+
+describe("aiming and swerve (original-game feel)", () => {
+  // runs a real launch on stage 1 (gx = 0, no wind) with the wall and the
+  // keeper taken out of the equation, and simulates to the result
+  function simulate(locked) {
+    const g = createGameState();
+    newScenario(g);
+    g.locked = locked;
+    launch(g);
+    g.wallHalf = -99;
+    g.kpX = g.kpStart = g.kpTarget = g.gx - 4.5;
+    g.kpDiveAngle = 0;
+    let maxX = 0;
+    for (let i = 0; i < 400 && !g.result; i++) {
+      step(g, 1 / 60);
+      if (g.phase === "flight") maxX = Math.max(maxX, g.ball.x);
+    }
+    return { g, maxX };
+  }
+
+  it("full direction deflection sends the ball far wide of the goal", () => {
+    const { g } = simulate({ h: 0.35, d: 1, s: 0 });
+    expect(g.result).toBe("WIDE");
+  });
+
+  it("centre of the goal window scores when nothing is in the way", () => {
+    const { g } = simulate({ h: 0.35, d: 0, s: 0 });
+    expect(g.result).toBe("GOAL");
+  });
+
+  it("right swerve bows out right, then curls back to the aimed line", () => {
+    const { g, maxX } = simulate({ h: 0.35, d: 0, s: 1 });
+    expect(maxX).toBeGreaterThan(0.7); // it visibly leaves the aim line
+    expect(g.result).toBe("GOAL"); // ...and still arrives on target
+    expect(Math.abs(g.netHitX - g.gx)).toBeLessThan(1.0);
+  });
+
+  it("newScenario reports the goal window on the direction gauge", () => {
+    const g = createGameState();
+    g.stage = 2; // gx = 2.0, D = 20
+    const patch = newScenario(g);
+    expect(patch.goalDir).toBeGreaterThan(0.5); // goal sits right of centre
+    expect(patch.goalDir).toBeLessThan(0.65);
+    // window shrinks with distance
+    const g10 = createGameState();
+    g10.stage = 10;
+    const patch10 = newScenario(g10);
+    expect(patch10.goalDirHalf).toBeLessThan(patch.goalDirHalf);
+  });
+});
+
+describe("keeper save geometry", () => {
+  // freezes the keeper in an explicit pose (feet at goal centre, rotated by
+  // `angle`, lifted by `lift`) and crosses the ball at gx + ballAt, ballY -
+  // the save must be exactly "the ball touched the drawn body"
+  function poseCase({ angle = 0, lift = 0, ballAt, ballY = 1.0 }) {
+    const g = flightState({ aimX: null });
+    g.kpX = g.kpStart = g.kpTarget = g.gx;
+    g.kpAngle = angle;
+    g.kpLift = lift;
+    g.ball.x = g.gx + ballAt;
+    g.ball.y = ballY;
+    step(g, 0.033);
+    return g.result;
+  }
+
+  it("standing keeper covers only his body column", () => {
+    expect(poseCase({ ballAt: 0.4 })).toBe("SAVED");
+    expect(poseCase({ ballAt: 1.2 })).toBe("GOAL");
+  });
+
+  it("a diving keeper covers his body line, not the space around it", () => {
+    const dive = { angle: 1.15, lift: 0.12 }; // full low dive to the right
+    // on the body: saved
+    expect(poseCase({ ...dive, ballAt: 0.9, ballY: 0.5 })).toBe("SAVED");
+    // the reported bug: ball passes just behind the feet of a diving keeper
+    expect(poseCase({ ...dive, ballAt: -0.5, ballY: 1.0 })).toBe("GOAL");
+    // over his near-horizontal body: goal
+    expect(poseCase({ ...dive, ballAt: 0.9, ballY: 1.6 })).toBe("GOAL");
+  });
+
+  it("a correctly-predicted dive still saves: the body lands on the ball", () => {
+    // gauss noise of exactly 0 via mocked randomness -> perfect prediction
+    const spy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const g = createGameState();
+      newScenario(g);
+      g.kpX = g.kpStart = g.gx - 2.5; // far enough away to force a dive
+      g.locked = { h: 0.35, d: 0, s: 0 }; // straight mid-height shot at centre
+      launch(g);
+      g.wallHalf = -99; // the wall is not under test
+      for (let i = 0; i < 400 && !g.result; i++) step(g, 1 / 60);
+      expect(Math.abs(g.kpDiveAngle)).toBeGreaterThan(0); // it was a dive
+      expect(g.result).toBe("SAVED");
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

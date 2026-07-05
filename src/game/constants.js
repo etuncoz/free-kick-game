@@ -1,5 +1,8 @@
-export const GOAL_HALF = 3.66; // metres
-export const GOAL_H = 2.44;
+// goal frame, 1.5x regulation size (7.32 x 2.44 m) - deliberately oversized
+// so scoring is easier; the keeper's reach was NOT scaled with it, so the
+// enlarged corners are his weak spot by design
+export const GOAL_HALF = 5.49; // metres, half the goal mouth
+export const GOAL_H = 3.66;
 export const BALL_R = 0.11;
 export const PENALTY_BOX_DEPTH = 16.5; // metres, box edge from the goal line
 
@@ -23,8 +26,20 @@ export const STAGES = [
 export const TOTAL_STAGES = STAGES.length;
 export const TRIES_PER_STAGE = 5;
 export const STAGE_KP_SIGMA = 0.9; // keeper prediction noise, constant all run
-export const STAGE_GAUGE_SPEED = 1.4; // gauge oscillation speed, constant all run
+// gauge oscillation speed, constant all run - eased from the original 1.4
+// (mid-range of the old per-kick ramp) after playtesting found it too fast
+export const STAGE_GAUGE_SPEED = 1.2;
 export const WIND_UNIT_KMH = 26; // 1 internal wind unit shown as 26 km/h
+
+// the DIRECTION gauge sweeps this many degrees each side of straight ahead
+// (NOT of the goal) - like the original game, the goal only occupies a
+// window of the sweep and hitting that window is the aiming skill. The
+// window's gauge position/width comes from gx/D per stage (see newScenario).
+export const AIM_CONE_DEG = 40;
+// lateral curl acceleration at full swerve. The launch compensates the
+// initial direction so a swerved ball bows OUT toward the chosen side and
+// curls back to land on the aimed line - the classic banana.
+export const CURL_ACCEL = 12.5;
 
 export const rnd = (a, b) => a + Math.random() * (b - a);
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

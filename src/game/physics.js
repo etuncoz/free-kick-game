@@ -1,5 +1,7 @@
 import {
+  AIM_CONE_DEG,
   BALL_R,
+  CURL_ACCEL,
   GOAL_H,
   GOAL_HALF,
   STAGES,
@@ -22,6 +24,13 @@ import {
    Swift/SpriteKit verbatim (see HANDOVER.md §8).
 ------------------------------------------------------------------- */
 
+// the keeper's body, as far as saves are concerned, is a capsule that
+// matches the drawn sprite: a segment of this length from his feet along
+// his (possibly dive-rotated, lifted) body, padded by this radius - which
+// also covers his spread arms when standing.
+export const KP_BODY_LEN = 1.95;
+export const KP_SAVE_RADIUS = 0.5;
+
 export function createGameState() {
   return {
     phase: "menu",
@@ -37,6 +46,7 @@ export function createGameState() {
     wallZ: 9.15,
     wallX: 0,
     wallN: 4,
+    stageWallN: 4,
     wallHalf: 1.1,
     ball: { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 },
     trail: [],
@@ -48,6 +58,8 @@ export function createGameState() {
     kpTarget: 0,
     kpAngle: 0,
     kpLift: 0,
+    kpDiveAngle: 0,
+    kpDiveLift: 0,
     wind: 0,
     windAx: 0,
     netRipple: 0,
@@ -71,7 +83,13 @@ export function newScenario(g) {
   g.D = st.d;
   g.gx = st.gx;
   g.wallZ = Math.min(9.15, g.D * 0.5);
-  const n = Math.random() < 0.5 ? 4 : Math.random() < 0.5 ? 3 : 5;
+  // the wall's player count is part of the stage, not the try: roll it on
+  // the first try (a fresh stage always enters with a full try budget) and
+  // keep it for every retry; position jitter and the jump still re-roll.
+  if (g.triesLeft === TRIES_PER_STAGE) {
+    g.stageWallN = Math.random() < 0.5 ? 4 : Math.random() < 0.5 ? 3 : 5;
+  }
+  const n = g.stageWallN;
   const nearPostAim = g.gx - Math.sign(g.gx || 1) * 1.7;
   g.wallX = (nearPostAim * g.wallZ) / g.D + rnd(-0.3, 0.3);
   g.wallN = n;
@@ -106,10 +124,18 @@ export function newScenario(g) {
   g.netHitX = g.gx;
   g.bounced = false;
   g.phase = "aim1";
+  // where the goal sits on the DIRECTION gauge (0..1): its centre shifts
+  // with the kick angle and its width shrinks with distance - the gauge UI
+  // draws this window so the player aims "at the goal", like the original
+  const coneRad = (AIM_CONE_DEG * Math.PI) / 180;
+  const goalDir = 0.5 + Math.atan2(g.gx, g.D) / (2 * coneRad);
+  const goalDirHalf = Math.atan(GOAL_HALF / g.D) / (2 * coneRad);
   return {
     phase: "aim1",
     stage: g.stage,
     triesLeft: g.triesLeft,
+    goalDir,
+    goalDirHalf,
     distance: Math.round(g.D),
     windKmh: Math.round(Math.abs(g.wind) * WIND_UNIT_KMH),
     windDir: g.wind >= 0 ? 1 : -1,
@@ -121,22 +147,44 @@ export function launch(g) {
   const { h, d, s } = g.locked;
   const theta = ((3 + h * 32) * Math.PI) / 180; // elevation
   const speed = 20.5 + (1 - h) * 3.5;
-  const phi0 = Math.atan2(g.gx, g.D); // baseline: straight at goal centre
-  const phi = phi0 + (d * 15 * Math.PI) / 180;
+  // DIRECTION sweeps a wide cone around straight ahead - the goal is only a
+  // window of it (marked on the gauge), so aiming means catching the window
+  const phi = (d * AIM_CONE_DEG * Math.PI) / 180;
   g.ball.vx = speed * Math.cos(theta) * Math.sin(phi);
   g.ball.vz = speed * Math.cos(theta) * Math.cos(phi);
   g.ball.vy = speed * Math.sin(theta);
-  g.curlAx = s * 12.5;
+  const T = g.D / g.ball.vz;
+  // SWERVE is a banana, not a drift: the ball leaves offset TOWARD the
+  // chosen side while the curl pulls the other way, bowing out around the
+  // wall and returning to the aimed line at the goal plane (v0 = a·T/2
+  // cancels the ½aT² curl displacement exactly, before drag).
+  g.curlAx = -s * CURL_ACCEL;
+  g.ball.vx += s * CURL_ACCEL * (T / 2);
   // schedule the wall jump just before the ball arrives
   const tWall = g.wallZ / g.ball.vz;
   g.wallJumpT = Math.max(0.05, tWall - 0.3);
   // keeper prediction (with human error)
-  const T = g.D / g.ball.vz;
   const gauss = (Math.random() + Math.random() + Math.random() - 1.5) * 1.2;
   const predX = g.ball.vx * T + 0.5 * (g.curlAx + g.windAx) * T * T + gauss * g.kpSigma;
   const predY = Math.max(0.2, g.ball.vy * T - 4.905 * T * T);
-  g.kpTarget = clamp(predX, g.gx - 3.35, g.gx + 3.35);
+  const reachX = clamp(predX, g.gx - 3.35, g.gx + 3.35);
   g.kpPredY = clamp(predY, 0.2, 2.3);
+  // decide the final pose now (the animation in step() just eases into it):
+  // a long way to cover means a dive, flatter for low balls; short shuffles
+  // stay upright, with a straight jump for high balls.
+  const deltaRaw = reachX - g.kpStart;
+  if (Math.abs(deltaRaw) > 1.0) {
+    g.kpDiveAngle = Math.sign(deltaRaw) * (g.kpPredY < 1.0 ? 1.15 : 0.8);
+    g.kpDiveLift = g.kpPredY > 1.2 ? 0.5 : 0.12;
+  } else {
+    g.kpDiveAngle = 0;
+    g.kpDiveLift = g.kpPredY > 1.6 ? 0.45 : 0;
+  }
+  // aim the FEET so the rotated body lands on the predicted point - a diver
+  // meets the ball with his torso/hands, not his feet. Without this offset
+  // the body overshoots the prediction and the ball sails behind his legs.
+  const tBody = clamp((g.kpPredY - g.kpDiveLift) / Math.cos(g.kpDiveAngle), 0, KP_BODY_LEN);
+  g.kpTarget = reachX - Math.sin(g.kpDiveAngle) * tBody;
   g.kpDelay = 0.24;
   g.kpDur = Math.max(0.3, T - g.kpDelay - 0.05);
   g.flightT = 0;
@@ -163,7 +211,8 @@ function finishKick(g, res, hitX, hitY) {
     g.streak += 1;
     g.goals += 1;
     const spareTries = g.triesLeft - 1; // this try was used
-    const corner = Math.abs(hitX - g.gx) > 2.75 || hitY > 1.9;
+    // "top bin": the outer ~quarter of the frame, scaled with the goal size
+    const corner = Math.abs(hitX - g.gx) > GOAL_HALF * 0.75 || hitY > GOAL_H * 0.78;
     const bonus = (g.streak - 1) * 25 + spareTries * 25 + (corner ? 50 : 0);
     g.lastPoints = 100 + bonus;
     g.resultDetail = corner
@@ -286,11 +335,16 @@ export function step(g, dt) {
           break;
         }
         if (inFrame) {
-          // keeper?
-          const dx = Math.abs(ix - g.kpX);
-          const bodySave = dx < 0.55 && iy < 2.25;
-          const diveSave = dx < 1.5 && iy < 2.15 - 0.75 * (dx / 1.5) && iy > 0.05;
-          if (bodySave || diveSave) {
+          // keeper? a save is the ball touching his drawn body - the capsule
+          // from his feet along his current (rotated, lifted) pose - so what
+          // the player sees and what the physics decides can never disagree.
+          const sinA = Math.sin(g.kpAngle);
+          const cosA = Math.cos(g.kpAngle);
+          const rx = ix - g.kpX;
+          const ry = iy - g.kpLift;
+          const tSeg = clamp(rx * sinA + ry * cosA, 0, KP_BODY_LEN);
+          const distToBody = Math.hypot(rx - sinA * tSeg, ry - cosA * tSeg);
+          if (distToBody < KP_SAVE_RADIUS + BALL_R) {
             b.z = g.D - 0.15;
             b.vz = -Math.abs(b.vz) * 0.2;
             b.vx *= 0.2;
@@ -322,18 +376,13 @@ export function step(g, dt) {
       const jp = g.flightT - g.wallJumpT;
       g.wallJh = Math.max(0, 2.7 * jp - 3.6 * jp * jp);
     }
-    // keeper animation
+    // keeper animation - eases into the pose decided at launch()
     if (g.flightT > g.kpDelay) {
       const p = clamp((g.flightT - g.kpDelay) / g.kpDur, 0, 1);
       const e = easeOut(p);
       g.kpX = lerp(g.kpStart, g.kpTarget, e);
-      const delta = g.kpTarget - g.kpStart;
-      if (Math.abs(delta) > 1.0) {
-        g.kpAngle = Math.sign(delta) * e * (g.kpPredY < 1.0 ? 1.15 : 0.8);
-        g.kpLift = e * (g.kpPredY > 1.2 ? 0.5 : 0.12);
-      } else if (g.kpPredY > 1.6) {
-        g.kpLift = e * 0.45;
-      }
+      g.kpAngle = e * g.kpDiveAngle;
+      g.kpLift = e * g.kpDiveLift;
     }
     // net ball drag on goal
     if (g.phase === "settle" && g.result === "GOAL") {
