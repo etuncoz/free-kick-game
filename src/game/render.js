@@ -12,8 +12,8 @@ import { BALL_R, GOAL_H, GOAL_HALF, PENALTY_BOX_DEPTH, clamp, easeOut, lerp } fr
 
 export const CAM = { x: 0, y: 8, z: -14 };
 // half-width of the actual playing surface - wide enough to always clear the
-// penalty box even at the extreme free-kick angles (gx up to ±5.2, box half
-// 20.15), so the box never gets clipped by the touchline.
+// penalty box even at the extreme free-kick angles (gx up to ±10, box half
+// 20.15 -> 30.15), so the box never gets clipped by the touchline.
 const PITCH_HALF_WIDTH = 32;
 // downward pitch of the camera, in degrees - this is what gives the
 // elevated "birds-eye" broadcast-camera look instead of a player-eye view.
@@ -24,7 +24,9 @@ const TILT_SIN = Math.sin((TILT_DEG * Math.PI) / 180);
 export function initCrowd(g) {
   if (g.crowd) return;
   g.crowd = [];
-  for (let i = 0; i < 900; i++) g.crowd.push([Math.random(), Math.random(), Math.random()]);
+  // the stand wall reaches from the sky band down to just behind the goal,
+  // so it needs a denser dot field than the old thin strip did
+  for (let i = 0; i < 2600; i++) g.crowd.push([Math.random(), Math.random(), Math.random()]);
 }
 
 export function resize(canvas, wrap, g) {
@@ -119,18 +121,6 @@ export function drawScene(ctx, g) {
     ctx.fillStyle = "#374a7a";
     ctx.fillRect(W * fx - 2, 9, 4, g.horizon * 0.5);
   }
-  // stands + crowd
-  const standTop = g.horizon * 0.28;
-  ctx.fillStyle = "#141d3f";
-  ctx.fillRect(0, standTop, W, g.horizon - standTop);
-  for (const [cx, cy, cc] of g.crowd) {
-    const y = standTop + cy * (g.horizon - standTop - 4);
-    ctx.fillStyle = cc < 0.15 ? "#facc15" : cc < 0.3 ? "#60a5fa" : cc < 0.42 ? "#f87171" : "#2b3a6b";
-    ctx.fillRect(cx * W, y, 2.4, 2.4);
-  }
-  ctx.fillStyle = "rgba(6,10,26,0.55)";
-  ctx.fillRect(0, g.horizon - 10, W, 10);
-
   // pitch surroundings (running track) - fills the whole lower half so the
   // in-bounds pitch clipped below reads as a distinct region, not a flat
   // continuation of the same green out to the edges of the screen
@@ -200,6 +190,31 @@ export function drawScene(ctx, g) {
   line(P(g.gx - 9.16, 0, sz), P(g.gx - 9.16, 0, g.D));
   line(P(g.gx + 9.16, 0, sz), P(g.gx + 9.16, 0, g.D));
 
+  /* ---- stands + crowd: the audience wall starts right behind the goal,
+     not up at the horizon - it covers the far pitch and out-of-bounds area
+     from the sky band down to a few metres past the goal line ---- */
+  const standTop = g.horizon * 0.28;
+  const standBottom = Math.max(g.horizon, P(0, 0, g.D + 6).y);
+  const standH = standBottom - standTop;
+  const standBg = ctx.createLinearGradient(0, standTop, 0, standBottom);
+  standBg.addColorStop(0, "#10173a");
+  standBg.addColorStop(1, "#1d2a55");
+  ctx.fillStyle = standBg;
+  ctx.fillRect(0, standTop, W, standH);
+  for (const [cx, cy, cc] of g.crowd) {
+    const y = standTop + cy * (standH - 4);
+    const size = 1.8 + cy * 1.6; // nearer (lower) rows read slightly bigger
+    ctx.fillStyle = cc < 0.15 ? "#facc15" : cc < 0.3 ? "#60a5fa" : cc < 0.42 ? "#f87171" : "#2b3a6b";
+    ctx.fillRect(cx * W, y, size, size);
+  }
+  // tier walkways so the wall reads as stands, not a starfield
+  ctx.fillStyle = "rgba(4,8,24,0.5)";
+  const tiers = 5;
+  for (let i = 1; i < tiers; i++) ctx.fillRect(0, standTop + (standH * i) / tiers, W, 2.5);
+  // shadowed foot of the stand wall
+  ctx.fillStyle = "rgba(6,10,26,0.55)";
+  ctx.fillRect(0, standBottom - 8, W, 8);
+
   /* ---- goal + net ---- */
   const netZ = g.D + 1.7;
   const scored = g.result === "GOAL" && (g.phase === "flight" || g.phase === "settle");
@@ -225,23 +240,58 @@ export function drawScene(ctx, g) {
   ctx.closePath();
   ctx.fill();
 
+  // net deformation: the mesh follows the ball as it drives into the net -
+  // a gaussian bulge (in x and y) centred on the ball, depth-scaled by how
+  // far past the goal line it is, layered on the decaying ripple wobble.
+  const ballInNet = scored && g.ball.z > g.D;
+  const netDz = (wx, wy) => {
+    let dz = ripple * 0.4 * Math.exp(-Math.abs(wx - g.netHitX));
+    if (ballInNet) {
+      const p = Math.min(1, (g.ball.z - g.D) / (netZ - g.D));
+      const fx = Math.exp(-(((wx - g.ball.x) / 1.1) ** 2));
+      const fy = Math.exp(-(((wy - g.ball.y) / 1.0) ** 2));
+      dz += p * 1.15 * fx * fy;
+    }
+    return dz;
+  };
+  const netPath = (points) => {
+    ctx.beginPath();
+    points.forEach(({ x: wx, y: wy }, i) => {
+      const pt = P(wx, wy, netZ + netDz(wx, wy));
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+  };
+
   ctx.strokeStyle = "rgba(240,245,255,0.55)";
   ctx.lineWidth = 1.2;
-  // back net grid
+  // back net grid, sampled so the bulge bends the threads smoothly
   for (let x = -GOAL_HALF; x <= GOAL_HALF + 0.01; x += 0.42) {
-    const wobble = ripple * Math.exp(-Math.abs(x + g.gx - g.netHitX));
-    const a = P(g.gx + x, 0, netZ + wobble);
-    const b = P(g.gx + x, GOAL_H - 0.1, netZ + wobble);
-    line(a, b);
+    const pts = [];
+    for (let y = 0; y <= GOAL_H - 0.1 + 0.001; y += (GOAL_H - 0.1) / 8) pts.push({ x: g.gx + x, y });
+    netPath(pts);
   }
   for (let y = 0; y <= GOAL_H - 0.05; y += 0.4) {
-    line(P(g.gx - GOAL_HALF, y, netZ + ripple * 0.4), P(g.gx + GOAL_HALF, y, netZ + ripple * 0.4));
+    const pts = [];
+    for (let x = -GOAL_HALF; x <= GOAL_HALF + 0.001; x += GOAL_HALF / 8) pts.push({ x: g.gx + x, y });
+    netPath(pts);
   }
   // side nets
   for (let y = 0.2; y <= GOAL_H; y += 0.55) {
     line(P(g.gx - GOAL_HALF, y, g.D), P(g.gx - GOAL_HALF, Math.max(0, y - 0.35), netZ));
     line(P(g.gx + GOAL_HALF, y, g.D), P(g.gx + GOAL_HALF, Math.max(0, y - 0.35), netZ));
   }
+  // back-frame stanchions: top corners angle down to the net's ground line,
+  // giving the goal its box shape
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = Math.max(1.5, 0.05 * P(0, 0, g.D).s);
+  for (const side of [-1, 1]) {
+    const sx = g.gx + side * GOAL_HALF;
+    line(P(sx, GOAL_H, g.D), P(sx, GOAL_H * 0.5, netZ));
+    line(P(sx, GOAL_H * 0.5, netZ), P(sx, 0, netZ));
+  }
+  line(P(g.gx - GOAL_HALF, 0, netZ), P(g.gx + GOAL_HALF, 0, netZ));
 
   // goal flash - a big, unmissable burst + expanding ring at the moment the
   // ball hits the net, since the net itself is small on screen from this
@@ -269,15 +319,24 @@ export function drawScene(ctx, g) {
     ctx.stroke();
   }
 
-  // frame
+  // frame - a dark offset pass under the white gives the posts a hint of
+  // roundness/depth instead of reading as flat strokes
   const pw = Math.max(2.5, 0.09 * P(0, 0, g.D).s);
-  ctx.strokeStyle = "#f8fafc";
-  ctx.lineCap = "round";
-  ctx.lineWidth = pw;
   const pl = P(g.gx - GOAL_HALF, 0, g.D);
   const plt = P(g.gx - GOAL_HALF, GOAL_H, g.D);
   const pr = P(g.gx + GOAL_HALF, 0, g.D);
   const prt = P(g.gx + GOAL_HALF, GOAL_H, g.D);
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(71,85,105,0.9)";
+  ctx.lineWidth = pw;
+  ctx.save();
+  ctx.translate(pw * 0.22, pw * 0.22);
+  line(pl, plt);
+  line(pr, prt);
+  line(plt, prt);
+  ctx.restore();
+  ctx.strokeStyle = "#f8fafc";
+  ctx.lineWidth = pw;
   line(pl, plt);
   line(pr, prt);
   line(plt, prt);

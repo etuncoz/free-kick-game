@@ -1,7 +1,7 @@
 import {
-  AIM_CONE_DEG,
   BALL_R,
   CURL_ACCEL,
+  DIR_GOAL_WINDOW,
   GOAL_H,
   GOAL_HALF,
   STAGES,
@@ -124,18 +124,10 @@ export function newScenario(g) {
   g.netHitX = g.gx;
   g.bounced = false;
   g.phase = "aim1";
-  // where the goal sits on the DIRECTION gauge (0..1): its centre shifts
-  // with the kick angle and its width shrinks with distance - the gauge UI
-  // draws this window so the player aims "at the goal", like the original
-  const coneRad = (AIM_CONE_DEG * Math.PI) / 180;
-  const goalDir = 0.5 + Math.atan2(g.gx, g.D) / (2 * coneRad);
-  const goalDirHalf = Math.atan(GOAL_HALF / g.D) / (2 * coneRad);
   return {
     phase: "aim1",
     stage: g.stage,
     triesLeft: g.triesLeft,
-    goalDir,
-    goalDirHalf,
     distance: Math.round(g.D),
     windKmh: Math.round(Math.abs(g.wind) * WIND_UNIT_KMH),
     windDir: g.wind >= 0 ? 1 : -1,
@@ -147,9 +139,12 @@ export function launch(g) {
   const { h, d, s } = g.locked;
   const theta = ((3 + h * 32) * Math.PI) / 180; // elevation
   const speed = 20.5 + (1 - h) * 3.5;
-  // DIRECTION sweeps a wide cone around straight ahead - the goal is only a
-  // window of it (marked on the gauge), so aiming means catching the window
-  const phi = (d * AIM_CONE_DEG * Math.PI) / 180;
+  // DIRECTION sweeps a cone around the goal centre, sized so the goal mouth
+  // always covers the same fixed fraction of the gauge (DIR_GOAL_WINDOW) -
+  // the gauge picture never changes between stages, while full deflection
+  // still sprays far wide of the frame
+  const cone = Math.atan(GOAL_HALF / g.D) / DIR_GOAL_WINDOW;
+  const phi = Math.atan2(g.gx, g.D) + d * cone;
   g.ball.vx = speed * Math.cos(theta) * Math.sin(phi);
   g.ball.vz = speed * Math.cos(theta) * Math.cos(phi);
   g.ball.vy = speed * Math.sin(theta);

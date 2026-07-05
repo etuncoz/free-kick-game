@@ -1,8 +1,8 @@
-// goal frame, 1.5x regulation size (7.32 x 2.44 m) - deliberately oversized
-// so scoring is easier; the keeper's reach was NOT scaled with it, so the
+// goal frame, 1.25x regulation size (7.32 x 2.44 m) - a bit oversized so
+// scoring is easier; the keeper's reach was NOT scaled with it, so the
 // enlarged corners are his weak spot by design
-export const GOAL_HALF = 5.49; // metres, half the goal mouth
-export const GOAL_H = 3.66;
+export const GOAL_HALF = 4.58; // metres, half the goal mouth
+export const GOAL_H = 3.05;
 export const BALL_R = 0.11;
 export const PENALTY_BOX_DEPTH = 16.5; // metres, box edge from the goal line
 
@@ -13,15 +13,15 @@ export const PENALTY_BOX_DEPTH = 16.5; // metres, box edge from the goal line
 // speed stay constant (see STAGE_KP_SIGMA / STAGE_GAUGE_SPEED).
 export const STAGES = [
   { d: 19.0, gx: 0.0, maxWindKmh: 0 },
-  { d: 20.0, gx: 2.0, maxWindKmh: 2 },
-  { d: 21.0, gx: -2.5, maxWindKmh: 3 },
-  { d: 22.0, gx: 3.2, maxWindKmh: 4 },
-  { d: 23.0, gx: -3.8, maxWindKmh: 5 },
-  { d: 24.0, gx: 1.5, maxWindKmh: 6 },
-  { d: 25.5, gx: -4.5, maxWindKmh: 7 },
-  { d: 27.0, gx: 4.8, maxWindKmh: 8 },
-  { d: 28.5, gx: -5.2, maxWindKmh: 9 },
-  { d: 30.0, gx: 5.2, maxWindKmh: 10 },
+  { d: 20.0, gx: 3.5, maxWindKmh: 2 },
+  { d: 21.0, gx: -4.5, maxWindKmh: 3 },
+  { d: 22.0, gx: 6.0, maxWindKmh: 4 },
+  { d: 23.0, gx: -7.0, maxWindKmh: 5 },
+  { d: 24.0, gx: 5.0, maxWindKmh: 6 },
+  { d: 25.5, gx: -8.5, maxWindKmh: 7 },
+  { d: 27.0, gx: 9.0, maxWindKmh: 8 },
+  { d: 28.5, gx: -10.0, maxWindKmh: 9 },
+  { d: 30.0, gx: 10.0, maxWindKmh: 10 },
 ];
 export const TOTAL_STAGES = STAGES.length;
 export const TRIES_PER_STAGE = 5;
@@ -31,11 +31,11 @@ export const STAGE_KP_SIGMA = 0.9; // keeper prediction noise, constant all run
 export const STAGE_GAUGE_SPEED = 1.2;
 export const WIND_UNIT_KMH = 26; // 1 internal wind unit shown as 26 km/h
 
-// the DIRECTION gauge sweeps this many degrees each side of straight ahead
-// (NOT of the goal) - like the original game, the goal only occupies a
-// window of the sweep and hitting that window is the aiming skill. The
-// window's gauge position/width comes from gx/D per stage (see newScenario).
-export const AIM_CONE_DEG = 40;
+// the goal occupies this fixed fraction of the DIRECTION gauge, centred,
+// identical on every stage - the sweep cone is derived from it per stage
+// (cone = atan(GOAL_HALF/D) / DIR_GOAL_WINDOW, anchored at goal centre), so
+// the gauge picture never moves while full deflection still sprays far wide.
+export const DIR_GOAL_WINDOW = 0.35;
 // lateral curl acceleration at full swerve. The launch compensates the
 // initial direction so a swerved ball bows OUT toward the chosen side and
 // curls back to land on the aimed line - the classic banana.

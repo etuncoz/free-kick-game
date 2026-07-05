@@ -3,7 +3,7 @@ import { createGameState, newScenario as physicsNewScenario, step as physicsStep
 import { drawScene, initCrowd, resize as resizeCanvas } from "./render";
 import { createAudioController } from "./audio";
 import { loadBests, saveRunEnd } from "./storage";
-import { TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
+import { DIR_GOAL_WINDOW, TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
 
 /* ------------------------------------------------------------------
    FREE KICK LEGEND — a playable HTML prototype of the classic
@@ -42,8 +42,6 @@ export default function MagicalKicks() {
     cupWon: false,
     stage: 1,
     triesLeft: TRIES_PER_STAGE,
-    goalDir: null,
-    goalDirHalf: 0,
     goals: 0,
     streak: 0,
     distance: null,
@@ -522,15 +520,16 @@ export default function MagicalKicks() {
                     : undefined
                 }
               >
-                {/* the direction gauge sweeps the whole pitch; this goal-
-                    mouth window is the part of the sweep that actually hits
-                    the frame - aim inside it, like the original's dial */}
-                {key === "d" && hud.goalDir != null && (
+                {/* the direction gauge sweeps far wider than the goal; this
+                    goal-mouth window is the part of the sweep that actually
+                    hits the frame. It is the same fixed, centred window on
+                    every stage (the physics scales the cone instead). */}
+                {key === "d" && (
                   <div
                     className="absolute -top-[5px] bottom-[2px] border-l-2 border-r-2 border-t-2 border-white/90 rounded-t-[3px] bg-emerald-300/25"
                     style={{
-                      left: `${(hud.goalDir - hud.goalDirHalf) * 100}%`,
-                      width: `${hud.goalDirHalf * 200}%`,
+                      left: `${(0.5 - DIR_GOAL_WINDOW / 2) * 100}%`,
+                      width: `${DIR_GOAL_WINDOW * 100}%`,
                     }}
                     aria-hidden="true"
                   />
@@ -545,8 +544,8 @@ export default function MagicalKicks() {
                 />
               </div>
               <div className="w-full flex justify-between mt-1 text-[9px] sm:text-[10px] font-semibold text-slate-500">
-                <span>{key === "h" ? "LOW" : key === "s" ? "↶ LEFT" : "LEFT"}</span>
-                <span>{key === "h" ? "HIGH" : key === "s" ? "RIGHT ↷" : "RIGHT"}</span>
+                <span>{key === "h" ? "LOW" : key === "s" ? "↷ LEFT" : "LEFT"}</span>
+                <span>{key === "h" ? "HIGH" : key === "s" ? "RIGHT ↶" : "RIGHT"}</span>
               </div>
             </div>
           ))}

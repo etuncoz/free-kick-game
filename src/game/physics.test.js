@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DIR_GOAL_WINDOW,
   GOAL_HALF,
   STAGES,
   STAGE_GAUGE_SPEED,
@@ -124,15 +125,17 @@ describe("scoring (stage mode)", () => {
 });
 
 describe("aiming and swerve (original-game feel)", () => {
-  // runs a real launch on stage 1 (gx = 0, no wind) with the wall and the
+  // runs a real launch on the given stage with the wall, the wind and the
   // keeper taken out of the equation, and simulates to the result
-  function simulate(locked) {
+  function simulate(locked, stage = 1) {
     const g = createGameState();
+    g.stage = stage;
     newScenario(g);
     g.locked = locked;
     launch(g);
     g.wallHalf = -99;
-    g.kpX = g.kpStart = g.kpTarget = g.gx - 4.5;
+    g.windAx = 0;
+    g.kpX = g.kpStart = g.kpTarget = g.gx - 14;
     g.kpDiveAngle = 0;
     let maxX = 0;
     for (let i = 0; i < 400 && !g.result; i++) {
@@ -147,9 +150,25 @@ describe("aiming and swerve (original-game feel)", () => {
     expect(g.result).toBe("WIDE");
   });
 
-  it("centre of the goal window scores when nothing is in the way", () => {
-    const { g } = simulate({ h: 0.35, d: 0, s: 0 });
-    expect(g.result).toBe("GOAL");
+  it("gauge centre aims at the goal centre on every stage, however angled", () => {
+    for (const stage of [1, 5, 10]) {
+      const { g } = simulate({ h: 0.35, d: 0, s: 0 }, stage);
+      expect(g.result).toBe("GOAL");
+      expect(Math.abs(g.netHitX - g.gx)).toBeLessThan(1.5); // drag shortfall only
+    }
+  });
+
+  it("the goal window edge maps to the post region at any distance", () => {
+    // marker on the window's right edge = d equal to the window fraction;
+    // the crossing must land around the right post (drag pulls it slightly
+    // inside) rather than metres away - this is what keeps the static gauge
+    // window honest while the cone rescales per stage
+    for (const stage of [1, 10]) {
+      const { g } = simulate({ h: 0.35, d: DIR_GOAL_WINDOW, s: 0 }, stage);
+      const crossX = g.result === "GOAL" ? g.netHitX : g.ball.x;
+      expect(crossX - g.gx).toBeGreaterThan(GOAL_HALF * 0.7);
+      expect(crossX - g.gx).toBeLessThan(GOAL_HALF * 1.25);
+    }
   });
 
   it("right swerve bows out right, then curls back to the aimed line", () => {
@@ -159,17 +178,11 @@ describe("aiming and swerve (original-game feel)", () => {
     expect(Math.abs(g.netHitX - g.gx)).toBeLessThan(1.0);
   });
 
-  it("newScenario reports the goal window on the direction gauge", () => {
-    const g = createGameState();
-    g.stage = 2; // gx = 2.0, D = 20
-    const patch = newScenario(g);
-    expect(patch.goalDir).toBeGreaterThan(0.5); // goal sits right of centre
-    expect(patch.goalDir).toBeLessThan(0.65);
-    // window shrinks with distance
-    const g10 = createGameState();
-    g10.stage = 10;
-    const patch10 = newScenario(g10);
-    expect(patch10.goalDirHalf).toBeLessThan(patch.goalDirHalf);
+  it("stages vary horizontally in both directions, not just in distance", () => {
+    const lefts = STAGES.filter((s) => s.gx < -3).length;
+    const rights = STAGES.filter((s) => s.gx > 3).length;
+    expect(lefts).toBeGreaterThanOrEqual(3);
+    expect(rights).toBeGreaterThanOrEqual(3);
   });
 });
 

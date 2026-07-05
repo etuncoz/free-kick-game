@@ -174,7 +174,7 @@ Set in `launch()` (`physics.js`) from the three locked gauge values, then integr
 ```
 θ  = 3° + h·32°                      // elevation from HEIGHT gauge (h ∈ [0,1])
 v  = 20.5 + (1−h)·3.5                // low shots are slightly faster
-φ  = d·AIM_CONE_DEG (±40°)           // DIRECTION gauge (d ∈ [−1,1]), anchored straight ahead
+φ  = atan2(gx,D) + d·cone            // DIRECTION gauge; cone = atan(GOAL_HALF/D)/DIR_GOAL_WINDOW
 curl accel  = −s·CURL_ACCEL (12.5)   // SWERVE gauge (s ∈ [−1,1]) - see below, it's a banana
 v0x        += s·CURL_ACCEL·T/2       // launch compensation: bows out, returns to the aim line
 wind accel  = wind·3.1 m/s² (lateral)
@@ -182,13 +182,14 @@ gravity 9.81, light per-axis drag (0.04–0.06 · v)
 ground bounce: restitution 0.45 (daisy-cutters are possible and intended)
 ```
 
-**Direction is pitch-wide, not goal-relative** (matched to the original game in a later session):
-the ±40° cone is anchored to straight-ahead, so full deflection sends the ball toward the far
-sides of the pitch, and the goal only occupies a window of the sweep.
-That window (centre shifted by the kick angle `atan2(gx, D)`, width `atan(GOAL_HALF/D)`, both as
-gauge fractions) is computed in `newScenario` (`goalDir`/`goalDirHalf` in the HUD patch) and drawn
-on the DIRECTION gauge as a white goal-mouth box — "aim at the goal" is literally catching the
-marker inside it, and the window shrinks with distance.
+**Direction sweeps far wider than the goal** (matched to the original game, then refined):
+the cone is anchored at the goal centre and sized per stage as
+`cone = atan(GOAL_HALF/D) / DIR_GOAL_WINDOW`, so the goal mouth always occupies the same fixed,
+centred fraction (`DIR_GOAL_WINDOW = 0.35`) of the gauge — the white goal-mouth box drawn on the
+DIRECTION track is static and identical on every stage, while full deflection still sprays 12 m+
+wide of the frame.
+"Aim at the goal" is literally catching the marker inside that box; the horizontal variety
+between stages shows up on the pitch view (the goal shifts sideways with `gx`), not on the gauge.
 
 **Swerve is a banana, not a drift** (also matched to the original): choosing RIGHT launches the
 ball offset to the right (`v0x += s·CURL_ACCEL·T/2`) while the curl accelerates it left
@@ -237,7 +238,7 @@ Corners beat him when his prediction noise pulls him off — that's the intended
 
 The kick spot is **not random anymore** — `D` and `gx` come straight from the hand-authored
 `STAGES` table in `constants.js` (10 entries of `{ d, gx, maxWindKmh }`; `D` ramps 19 → 30 m,
-`|gx|` up to 5.2 m, wind cap 0 → 10 km/h).
+`|gx|` up to 10 m so the kick spot swings visibly across the pitch, wind cap 0 → 10 km/h).
 The spot is identical for all 5 tries of a stage, and so is the wall's player count (3–5, rolled
 once on a stage's first try); only wind, the wall's position jitter and jump (80 % chance, timed
 to arrive 0.3 s before the ball) and the keeper's prediction noise re-roll per try.
@@ -280,6 +281,15 @@ On `GOAL` (and only on `GOAL`), `render.js` now draws, at the exact net-impact p
 - A bright gold/white radial flash whose radius grows and fades with `g.netRipple` (already-existing decay timer, ~0.7s).
 - An expanding white "shockwave" ring stroke.
 - The net's dark backing quad flashes toward white/gold instead of staying dark.
+- The net mesh itself deforms with the ball (added in a later session): while the ball is behind
+  the goal line, every thread gets a gaussian depth bulge centred on the ball's x/y, scaled by how
+  deep it is — the net visibly catches and follows the ball. The goal frame also gained back
+  stanchions, a ground bar and a shaded double-stroke on the posts.
+
+**Stands placement** (same session): the crowd wall is no longer a thin strip at the horizon — it
+is drawn *after* the pitch, from the sky band down to the ground point 6 m behind the goal
+(`P(0, 0, D+6).y`), so the audience starts directly behind the net and covers the far pitch and
+the out-of-bounds brown. Tier walkway lines and near-row dot scaling keep it reading as stands.
 
 None of this fires for `SAVED`/`WALL`/`POST`/`OVER`/`WIDE` — verified by screenshot.
 
@@ -297,14 +307,14 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 | SWERVE gauge speed ×1.15 | `gaugePos` (physics.js) | 1.15 | Third tap is slightly harder. Single source of truth now — no longer duplicated. |
 | Elevation range | `launch` | 3°–35° | Shot arc envelope |
 | Base speed | `launch` | 20.5–24 m/s | Flight time (~1.1–1.4 s to goal) |
-| `AIM_CONE_DEG` | `constants.js` | ±40° | The DIRECTION sweep, anchored straight ahead — the goal is only a window of it (drawn on the gauge) |
+| `DIR_GOAL_WINDOW` | `constants.js` | 0.35 | Fraction of the DIRECTION gauge the goal occupies (static, centred); the sweep cone rescales per stage around it |
 | `CURL_ACCEL` | `constants.js` | 12.5 | Banana strength: curl accel one way + launch offset the other, returning to the aim line |
 | `windAx` | `newScenario` | `wind · 3.1` | Wind influence |
 | `WIND_UNIT_KMH` | `constants.js` | `26` | Display conversion: 1 internal wind unit = 26 km/h |
 | Goal points | `finishKick` | `100 + (streak−1)·25 + spareTries·25 (+50 top bin)` | Reward shape: first-try clears and streaks pay most |
 | `kpDelay` | `launch` | 0.24 s | Keeper reaction time |
 | `KP_BODY_LEN` / `KP_SAVE_RADIUS` | `physics.js` | 1.95 m / 0.5 m | The save capsule = the keeper's drawn body (see §4) — how generous the keeper is |
-| `GOAL_HALF` / `GOAL_H` | `constants.js` | 5.49 / 3.66 m | Goal frame, deliberately 1.5× regulation so scoring is easier; the keeper's reach is NOT scaled with it, so the corners are open by design |
+| `GOAL_HALF` / `GOAL_H` | `constants.js` | 4.58 / 3.05 m | Goal frame, deliberately 1.25× regulation so scoring is easier; the keeper's reach is NOT scaled with it, so the corners are open by design |
 | Wall jump | `step` | `2.7t − 3.6t²` (peak ≈ 0.5 m) | Jump height/timing |
 | `CAM` (camera position) | `render.js` | `{x:0, y:8, z:-14}` | Where the "broadcast camera" sits, new this session |
 | `TILT_DEG` | `render.js` | `32` | Downward camera pitch, new this session |
