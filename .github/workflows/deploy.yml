@@ -44,5 +44,14 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # the Pages backend regularly rejects the first deployment attempt
+      # right after the artifact upload ("Deployment failed, try again
+      # later") and succeeds on a retry - so retry once, automatically
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 20
+      - id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
