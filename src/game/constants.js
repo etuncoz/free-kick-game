@@ -3,6 +3,7 @@ export const GOAL_H = 2.44;
 export const BALL_R = 0.11;
 export const TOTAL_KICKS = 10;
 export const MAX_WIND_KMH = 10;
+export const PENALTY_BOX_DEPTH = 16.5; // metres, box edge from the goal line
 
 export const rnd = (a, b) => a + Math.random() * (b - a);
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

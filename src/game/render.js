@@ -1,4 +1,4 @@
-import { BALL_R, GOAL_H, GOAL_HALF, clamp, easeOut, lerp } from "./constants";
+import { BALL_R, GOAL_H, GOAL_HALF, PENALTY_BOX_DEPTH, clamp, easeOut, lerp } from "./constants";
 
 /* ------------------------------------------------------------------
    Canvas 2D rendering: the pinhole projection, sprites, and pitch/
@@ -189,7 +189,7 @@ export function drawScene(ctx, g) {
   // pitch lines
   line(P(g.gx - 26, 0, g.D), P(g.gx + 26, 0, g.D)); // goal line
   // penalty box
-  const bz = g.D - 16.5;
+  const bz = g.D - PENALTY_BOX_DEPTH;
   if (bz > 1) {
     line(P(g.gx - 20.15, 0, bz), P(g.gx + 20.15, 0, bz));
     line(P(g.gx - 20.15, 0, bz), P(g.gx - 20.15, 0, g.D));

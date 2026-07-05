@@ -1,4 +1,16 @@
-import { BALL_R, GOAL_H, GOAL_HALF, MAX_WIND_KMH, TOTAL_KICKS, clamp, easeOut, lerp, ping, rnd } from "./constants";
+import {
+  BALL_R,
+  GOAL_H,
+  GOAL_HALF,
+  MAX_WIND_KMH,
+  PENALTY_BOX_DEPTH,
+  TOTAL_KICKS,
+  clamp,
+  easeOut,
+  lerp,
+  ping,
+  rnd,
+} from "./constants";
 
 /* ------------------------------------------------------------------
    Pure game-state functions: scenario generation, the flight model,
@@ -51,7 +63,9 @@ export function gaugePos(g, key) {
 
 export function newScenario(g) {
   const k = g.kick;
-  g.D = rnd(17, 26.5); // distance to goal line
+  // distance to goal line - always well clear of the penalty box, since a
+  // free kick taken from inside it would actually be a penalty/indirect kick
+  g.D = rnd(PENALTY_BOX_DEPTH + 2.5, PENALTY_BOX_DEPTH + 12);
   g.gx = rnd(-5.2, 5.2); // goal centre offset (angle of the free kick)
   g.wallZ = Math.min(9.15, g.D * 0.5);
   const n = Math.random() < 0.5 ? 4 : Math.random() < 0.5 ? 3 : 5;
