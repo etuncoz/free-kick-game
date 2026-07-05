@@ -20,4 +20,5 @@ Thumbs.db
 # Claude Code local tooling
 .agents/
 .claude/settings.local.json
+.claude/skills/
 skills-lock.json
