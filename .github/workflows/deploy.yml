@@ -23,7 +23,11 @@ jobs:
           # (npm 10 vs 11 disagree about wasm/optional-dep lock entries)
           node-version: 24
           cache: npm
-      - run: npm ci
+      # not `npm ci`: the wasm32-wasi fallback packages (rolldown /
+      # tailwind oxide) trip npm ci's lock validation when the lock was
+      # generated on another platform (npm/cli#7902-class bug). npm install
+      # still resolves from the committed lock.
+      - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
