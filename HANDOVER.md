@@ -4,7 +4,7 @@ A playable web prototype of the classic *"Roberto Baggio's Magical Kicks"* three
 kick game, rebuilt in **React + Canvas 2D + Tailwind + Vite**.
 This document is the handover for continuing development locally (e.g. with Claude Code), and eventually porting the mechanic to a native iOS app.
 
-The project now lives in a git repository, pushed to `https://github.com/etuncoz/free-kick-game.git` (branch `main`).
+The project now lives in a git repository, pushed to `https://github.com/etuncoz/free-kick-game.git` — work on `development`, deploy from `main`, PRs only (see §3 "Branching, CI & deployment").
 Commit history is the primary record of *what* changed from here on — this document is for the *why* behind decisions and design details that don't show up in a diff.
 
 ---
@@ -43,6 +43,8 @@ This is now a real scaffolded Vite app, not a single artifact component.
 | `src/game/audio.js` | WebAudio sfx synth, exposed as `createAudioController()` returning `{ ensureAudio, sfx, setMuted }`. |
 | `src/game/storage.js` | localStorage persistence of run records (keys `fkl.bestStage`, `fkl.bestScore`, `fkl.cupWon`) via `loadBests()` / `saveRunEnd()`. Every access is guarded, so private browsing just means nothing persists. |
 | `src/game/constants.js` | Shared math helpers (`rnd`, `clamp`, `lerp`, `easeOut`, `ping`) and tunables (`GOAL_HALF`, `BALL_R`, `PENALTY_BOX_DEPTH`, the `STAGES` table, `TRIES_PER_STAGE`, `STAGE_KP_SIGMA`, `STAGE_GAUGE_SPEED`, `WIND_UNIT_KMH`). |
+| `.github/workflows/ci.yml` | Build + full test suite on every push to `development` and on PRs targeting `development` or `main`. |
+| `.github/workflows/deploy.yml` | GitHub Pages deployment, triggered by pushes to `main` (i.e. merged deploy PRs). See §3 "Branching, CI & deployment". |
 | `HANDOVER.md` | This document. |
 
 ## 3. Running it locally
@@ -61,6 +63,24 @@ Notes:
 - Run records (best stage reached, best score, cup won) persist across reloads via localStorage (`src/game/storage.js`).
   There is deliberately no mid-run resume: reloading starts a fresh run at stage 1.
 - A dev-only debug hook exists: `window.__game` is set to the live mutable game state, but only when `import.meta.env.DEV` is true. It's stripped from production builds (verified by grepping the built bundle for `__game`). Useful for forcing specific game states (e.g. `window.__game.result = "GOAL"`) when testing visuals without waiting on stochastic physics — see the Playwright scripts pattern used this session, described in §10.
+
+### Branching, CI & deployment
+
+**Direct pushes to shared branches are forbidden — everything lands via pull request.**
+
+- Day-to-day work happens on `development`: branch a feature branch off it, open a PR back into
+  `development`, merge when CI is green.
+- `main` is the deployed branch. It only ever receives **deploy PRs from `development`** — open
+  one exactly when you intend to release to GitHub Pages, nothing else targets `main`.
+- CI (`.github/workflows/ci.yml`): builds and runs the full test suite on every push to
+  `development` and on every PR targeting `development` or `main`, so both feature merges and
+  deploy PRs are checked before and after landing.
+- Deployment (`.github/workflows/deploy.yml`): merging a deploy PR into `main` builds, re-tests,
+  and publishes to `https://etuncoz.github.io/free-kick-game/` automatically. The Pages backend's
+  first deployment attempt regularly fails transiently; the workflow retries once by itself.
+- Both workflows use `npm install` rather than `npm ci`: the wasm32-wasi fallback packages
+  (rolldown / tailwind oxide) break `npm ci`'s lock validation when the lock file was generated
+  on a different platform.
 
 ## 4. Architecture
 
@@ -126,13 +146,24 @@ called directly from the `requestAnimationFrame` loop, right after `drawScene`, 
 performance trade-off the mutable `G.current` game state already makes elsewhere (§4 intro) — the
 60 fps path never touches `setState`.
 
-The interaction model changed to match: the whole canvas used to be one big tap target
-(`onPointerDown` on the wrapping div called `onAction`). It's now a single dedicated ⚽ button,
-absolutely positioned bottom-right over the canvas (`z-20`, above the menu/result/game-over
-overlays), which is the sole trigger for every phase transition — locking each gauge, kicking off,
-advancing past a result, and playing again. It fades out and stops intercepting clicks
-(`opacity-0 pointer-events-none`) during `runup`/`flight`/`settle`, when there's nothing for it to
-do. Space/Enter still work everywhere, unchanged.
+The interaction model went full circle (mobile-UI session): the whole canvas is a tap target
+again (`onPointerDown` on the wrapper calls `onAction`) — essential on phones, where tapping the
+small ⚽ three times in rhythm is fiddly — AND the dedicated ⚽ button remains, bottom-right over
+the canvas. The button stops `pointerdown` propagation so its own taps fire exactly one action
+(the wrapper would otherwise double-fire). The button still fades out
+(`opacity-0 pointer-events-none`) during `runup`/`flight`/`settle`; taps on the canvas during
+those phases hit `onAction`'s default branch and do nothing. Space/Enter work everywhere,
+unchanged.
+
+**Mobile layout** (same session, verified at 360×640 and 390×844 via Playwright emulation):
+`min-h-dvh` + `touch-action: manipulation` + safe-area bottom padding on the page root;
+`viewport-fit=cover` in the meta tag; the info bar wraps into two rows below `sm`
+(SCORE/STAGE/TRIES then DISTANCE/WIND/mute); panel paddings tighten below `sm`; the footer
+tagline hides. The menu/game-over/won overlays switch from `absolute` (inside the canvas) to
+**full-screen `fixed z-30`** below `sm` — the short 16/10 canvas would clip them (this was an
+actual clipped-title bug caught by screenshot). They stay inside the wrapper DOM, so tapping
+anywhere still advances. Everything fits one portrait screen with no scrolling from 360 px up;
+landscape merely doesn't break (no horizontal overflow, page may scroll).
 
 ### Coordinate system & projection (rewritten this session — was a naive height-offset hack, now a proper tilted camera)
 
@@ -369,7 +400,10 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 - **Kicker animation is minimal** (a lerp + lean, no leg swing frames).
 - **No pause/visibility handling**: `dt` is clamped to 33 ms so tab-switching won't explode
   the physics, but a proper pause on `visibilitychange` would be cleaner.
-- **DISTANCE stat always renders in the info row now** (see §4) — it used to be hidden below the `sm` breakpoint; that hiding was removed for consistency with the other stats, but it hasn't been checked on an actual small phone yet, so watch for crowding on the narrowest supported widths. The cup-run rework made the left stat group wider still (SCORE + STAGE + TRIES dots), so small-width crowding is now *more* likely, not less.
+- **Narrow-width layout is now designed-for and emulator-verified down to 360 px** (two-row info
+  bar, full-screen phone overlays — see §4 "Mobile layout"), but only via Playwright viewport
+  emulation: no human has played it on a physical phone yet, so real-device quirks (browser
+  chrome, notches beyond the safe-area inset, touch latency feel) are unverified.
 - Playtest before trusting any feel judgment baked into the constants.
   The original HUD/camera rework was verified visually via automated Playwright screenshots (see §10), not by a human playing it.
   The later HUD-relocation, ⚽-button, and penalty-box-distance changes were verified only via `npm run build` succeeding. A real playtest of those changes is still outstanding.
