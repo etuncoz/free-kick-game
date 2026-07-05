@@ -97,8 +97,10 @@ export function newScenario(g) {
   // the wall's player count is part of the stage, not the try: roll it on
   // the first try (a fresh stage always enters with a full try budget) and
   // keep it for every retry; position jitter and the jump still re-roll.
+  const mods = st.mods || {};
   if (g.triesLeft === TRIES_PER_STAGE) {
-    g.stageWallN = Math.random() < 0.5 ? 4 : Math.random() < 0.5 ? 3 : 5;
+    // gimmick stages pin their wall size; the rest roll 3-5 per stage
+    g.stageWallN = mods.wallN ?? (Math.random() < 0.5 ? 4 : Math.random() < 0.5 ? 3 : 5);
     // the ghost marks of earlier tries only make sense within one stage -
     // a fresh stage (full try budget) starts with a clean slate; retries
     // deliberately keep them so the player can walk their aim in
@@ -109,14 +111,14 @@ export function newScenario(g) {
   g.wallX = (nearPostAim * g.wallZ) / g.D + rnd(-0.3, 0.3);
   g.wallN = n;
   g.wallHalf = (n * 0.56) / 2;
-  g.wallWillJump = Math.random() < 0.8;
+  g.wallWillJump = Math.random() < (mods.wallJumpChance ?? 0.8);
   g.wallJumpT = 0;
   g.wallJh = 0;
   // wind re-rolls each try, capped by the stage's difficulty band. It blows
   // from any compass direction: the x component pushes the ball sideways,
   // the z component is head/tailwind (0 rad = blowing toward the goal).
   const maxW = st.maxWindKmh / WIND_UNIT_KMH;
-  const windMag = rnd(0, maxW);
+  const windMag = rnd((mods.windMinFrac ?? 0) * maxW, maxW);
   const windAng = rnd(0, Math.PI * 2);
   g.windX = windMag * Math.sin(windAng);
   g.windZ = windMag * Math.cos(windAng);
@@ -129,7 +131,7 @@ export function newScenario(g) {
   g.kpTarget = g.kpX;
   g.kpAngle = 0;
   g.kpLift = 0;
-  g.kpSigma = STAGE_KP_SIGMA;
+  g.kpSigma = mods.kpSigma ?? STAGE_KP_SIGMA;
   // ball + gauges
   g.ball = { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 };
   g.trail = [];
@@ -148,6 +150,7 @@ export function newScenario(g) {
   return {
     phase: "aim1",
     stage: g.stage,
+    stageName: st.name,
     triesLeft: g.triesLeft,
     distance: Math.round(g.D),
     windKmh: Math.round(Math.hypot(g.windX, g.windZ) * WIND_UNIT_KMH),

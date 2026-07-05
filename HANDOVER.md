@@ -240,11 +240,19 @@ Corners beat him when his prediction noise pulls him off — that's the intended
 ### Scenario generation (`newScenario`)
 
 The kick spot is **not random anymore** — `D` and `gx` come straight from the hand-authored
-`STAGES` table in `constants.js` (10 entries of `{ d, gx, maxWindKmh }`; `D` ramps 19 → 30 m,
+`STAGES` table in `constants.js` (10 entries of `{ d, gx, maxWindKmh, name, mods? }`; `D` ramps 19 → 30 m,
 `|gx|` up to 10 m so the kick spot swings visibly across the pitch, wind cap 0 → 10 km/h).
 The spot is identical for all 5 tries of a stage, and so is the wall's player count (3–5, rolled
 once on a stage's first try); only wind, the wall's position jitter and jump (80 % chance, timed
 to arrive 0.3 s before the ball) and the keeper's prediction noise re-roll per try.
+
+**Stage personalities** (gameplay-improvements batch): every stage has a display `name` (info
+bar, goal banner, and the next-stage prompt telegraphs it), and gimmick stages carry a `mods`
+object that `newScenario` applies over the defaults: `wallN` (pins the wall size, skipping the
+roll), `wallJumpChance`, `kpSigma`, `windMinFrac` (wind never rolls below that fraction of the
+cap). Current gimmicks: THE CAT (kpSigma 0.55), THE GREAT WALL (6 men, never jumps), SWIRLING
+GALE (wind ≥ 75 % of cap), THE FORTRESS (5 men + kpSigma 0.7), THE FINAL (wind ≥ 50 % + kpSigma
+0.8).
 The wall sits on the ball→near-post line at `min(9.15, D/2)`, which always resolves to the 9.15 m
 cap (10 yards) since every stage has `D ≥ 19`.
 
@@ -317,7 +325,7 @@ the iOS build. Camera/render numbers do not port (iOS will have its own camera).
 
 | Constant | Where | Current | Effect |
 |---|---|---|---|
-| `STAGES` | `constants.js` | 10 × `{ d, gx, maxWindKmh }` | THE difficulty curve: kick spot + wind cap per stage (`d` 19→30, `maxWindKmh` 0→10) |
+| `STAGES` | `constants.js` | 10 × `{ d, gx, maxWindKmh, name, mods? }` | THE difficulty curve: kick spot, wind cap, display name and optional gimmick overrides per stage |
 | `TRIES_PER_STAGE` | `constants.js` | `5` | Attempts per stage before game over |
 | `STAGE_GAUGE_SPEED` | `constants.js` | `1.2` | Gauge oscillation speed, constant all run (eased from 1.4 after playtesting found it too fast) |
 | `STAGE_KP_SIGMA` | `constants.js` | `0.9` | Keeper prediction noise, constant all run (mid-range of the old per-kick ramp) |

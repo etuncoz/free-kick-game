@@ -59,21 +59,26 @@ Also fixed a pre-existing flaky test discovered this phase: `windZ` can be `-0` 
 Tests 21 → 25; E2E verified two distinct fading marks on retry (screenshot reviewed) and a clean slate after stage advance; build green.
 
 ## Phase 3: Stage personalities (names + gimmick overrides)
-Status: Not started
+Status: Complete
 
-- [ ] `constants.js`: extend `STAGES` entries with `name` and optional `mods` (`wallN`, `wallJumpChance`, `kpSigma`, `windMinFrac`); author the 10 names with gimmicks on stages 3 ("THE CAT", kpSigma 0.55), 4 ("THE GREAT WALL", wallN 6 + wallJumpChance 0), 6 ("SWIRLING GALE", windMinFrac 0.75), 9 ("THE FORTRESS", wallN 5 + kpSigma 0.7), 10 ("THE FINAL", windMinFrac 0.5 + kpSigma 0.8); plain names elsewhere.
-- [ ] `physics.js` `newScenario`: apply the mods (wall size fixed by `wallN` mod instead of the per-stage roll; jump chance override; kpSigma override; wind magnitude `rnd(windMinFrac * maxW, maxW)`); include `stageName` in the HUD patch.
-- [ ] `MagicalKicks.jsx`: show the stage name in the info bar next to STAGE and in the goal banner ("STAGE x - THE CAT - CLEAR"); wall-size support for 6 players (render loop already generic).
-- [ ] Unit tests: gimmick stages apply their overrides (wall 6 + never jumps on stage 4; wind >= 0.75 cap over many rolls on stage 6; kpSigma 0.55 on stage 3); non-gimmick stages keep defaults; every stage has a non-empty name; patch carries `stageName`.
-- [ ] E2E: screenshot stage 4's six-man wall and the named banner/info bar.
-- [ ] HANDOVER.md: §4 scenario generation + §5 STAGES row describe names/mods; `npm test` + build green; commit and push.
+- [x] `constants.js`: extend `STAGES` entries with `name` and optional `mods` (`wallN`, `wallJumpChance`, `kpSigma`, `windMinFrac`); author the 10 names with gimmicks on stages 3 ("THE CAT", kpSigma 0.55), 4 ("THE GREAT WALL", wallN 6 + wallJumpChance 0), 6 ("SWIRLING GALE", windMinFrac 0.75), 9 ("THE FORTRESS", wallN 5 + kpSigma 0.7), 10 ("THE FINAL", windMinFrac 0.5 + kpSigma 0.8); plain names elsewhere.
+- [x] `physics.js` `newScenario`: apply the mods (wall size fixed by `wallN` mod instead of the per-stage roll; jump chance override; kpSigma override; wind magnitude `rnd(windMinFrac * maxW, maxW)`); include `stageName` in the HUD patch.
+- [x] `MagicalKicks.jsx`: show the stage name in the info bar next to STAGE and in the goal banner ("STAGE x · THE CAT · CLEAR"); wall-size support for 6 players (render loop already generic).
+- [x] Unit tests: gimmick stages apply their overrides (wall 6 + never jumps on stage 4; wind >= 0.75 cap over many rolls on stage 6; kpSigma 0.55 on stage 3); non-gimmick stages keep defaults; every stage has a non-empty name; patch carries `stageName`.
+- [x] E2E: screenshot stage 4's six-man wall and the named banner/info bar.
+- [x] HANDOVER.md: §4 scenario generation + §5 STAGES row describe names/mods; `npm test` + build green; commit and push.
 
 ### Verification Plan
 - `npx vitest run` passes including the stage-mod tests.
 - Playwright screenshot shows a 6-man wall on stage 4 and the stage name in the UI.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-05.
+`STAGES` entries now carry `name` + optional `mods`; gimmicks landed as planned (note: SWIRLING GALE is stage 6 in the table at gx=5, sitting between the plain THE SIDE ROAD and TIGHT ANGLE angle stages).
+`newScenario` applies mods via `??` defaults - wall size pinned by `mods.wallN` skips the 3-5 roll but still uses the same first-try/stick-on-retry mechanism, so modded walls persist across retries like rolled ones.
+`stageName` rides the scenario HUD patch; the info bar shows it next to STAGE (hidden below the `md` breakpoint to protect the crowded narrow layout), the goal banner reads "STAGE x · NAME · CLEAR", and the advance prompt telegraphs the NEXT stage's name ("TAP ⚽ FOR STAGE 4 · THE GREAT WALL") so gimmicks announce themselves.
+One pre-existing test updated: "constant keeper skill every stage" now expects the mod override where one exists.
+Tests 25 → 30; E2E verified banner copy, next-stage prompt, and the six-man non-jumping wall on stage 4 (screenshot reviewed); build green.
 
 ## Phase 4: Perfect-lock sweet spots + PURE STRIKE
 Status: Not started

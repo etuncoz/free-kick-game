@@ -78,12 +78,12 @@ describe("newScenario (stage mode)", () => {
     expect(quadrants.size).toBe(4);
   });
 
-  it("uses the constant keeper skill and gauge speed every stage", () => {
+  it("uses the run-constant keeper skill and gauge speed unless a stage mod overrides", () => {
     for (let stage = 1; stage <= STAGES.length; stage++) {
       const g = createGameState();
       g.stage = stage;
       newScenario(g);
-      expect(g.kpSigma).toBe(STAGE_KP_SIGMA);
+      expect(g.kpSigma).toBe(STAGES[stage - 1].mods?.kpSigma ?? STAGE_KP_SIGMA);
       expect(g.gaugeSpeed).toBe(STAGE_GAUGE_SPEED);
     }
   });
@@ -222,6 +222,55 @@ describe("aiming and swerve (original-game feel)", () => {
     const rights = STAGES.filter((s) => s.gx > 3).length;
     expect(lefts).toBeGreaterThanOrEqual(3);
     expect(rights).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("stage personalities", () => {
+  const scenarioFor = (stage) => {
+    const g = createGameState();
+    g.stage = stage;
+    const patch = newScenario(g);
+    return { g, patch };
+  };
+
+  it("every stage has a name, surfaced in the HUD patch", () => {
+    STAGES.forEach((st, i) => {
+      expect(typeof st.name).toBe("string");
+      expect(st.name.length).toBeGreaterThan(0);
+      expect(scenarioFor(i + 1).patch.stageName).toBe(st.name);
+    });
+  });
+
+  it("THE GREAT WALL always fields six men and never jumps", () => {
+    for (let roll = 0; roll < 50; roll++) {
+      const { g } = scenarioFor(4);
+      expect(g.wallN).toBe(6);
+      expect(g.wallWillJump).toBe(false);
+    }
+  });
+
+  it("keeper-sigma mods override the run constant; others keep it", () => {
+    expect(scenarioFor(3).g.kpSigma).toBe(0.55); // THE CAT
+    expect(scenarioFor(9).g.kpSigma).toBe(0.7); // THE FORTRESS
+    expect(scenarioFor(1).g.kpSigma).toBe(STAGE_KP_SIGMA);
+  });
+
+  it("SWIRLING GALE always blows at least 75% of its cap", () => {
+    const cap = STAGES[5].maxWindKmh / WIND_UNIT_KMH;
+    for (let roll = 0; roll < 100; roll++) {
+      const { g } = scenarioFor(6);
+      const mag = Math.hypot(g.windX, g.windZ);
+      expect(mag).toBeGreaterThanOrEqual(0.75 * cap - 1e-9);
+      expect(mag).toBeLessThanOrEqual(cap + 1e-9);
+    }
+  });
+
+  it("a modded wall size still sticks across retries", () => {
+    const { g } = scenarioFor(9); // THE FORTRESS pins 5
+    expect(g.wallN).toBe(5);
+    g.triesLeft -= 1;
+    newScenario(g);
+    expect(g.wallN).toBe(5);
   });
 });
 

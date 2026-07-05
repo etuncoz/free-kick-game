@@ -3,7 +3,7 @@ import { createGameState, newScenario as physicsNewScenario, step as physicsStep
 import { drawScene, initCrowd, resize as resizeCanvas } from "./render";
 import { createAudioController } from "./audio";
 import { loadBests, saveRunEnd } from "./storage";
-import { DIR_GOAL_WINDOW, TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
+import { DIR_GOAL_WINDOW, STAGES, TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
 
 /* ------------------------------------------------------------------
    FREE KICK LEGEND — a playable HTML prototype of the classic
@@ -41,6 +41,7 @@ export default function MagicalKicks() {
     bestStage: 0,
     cupWon: false,
     stage: 1,
+    stageName: STAGES[0].name,
     triesLeft: TRIES_PER_STAGE,
     goals: 0,
     streak: 0,
@@ -247,13 +248,15 @@ export default function MagicalKicks() {
       </div>
     ) : null;
 
-  // what tapping ⚽ on the result banner will do next
+  // what tapping ⚽ on the result banner will do next; a cleared stage
+  // telegraphs the next stage's name so gimmicks announce themselves
   const clearedFinalStage = hud.msg?.tone === "goal" && hud.stage >= TOTAL_STAGES;
+  const nextStageName = hud.stage < TOTAL_STAGES ? STAGES[hud.stage].name : "";
   const resultPrompt =
     hud.msg?.tone === "goal"
       ? clearedFinalStage
         ? "TAP ⚽ TO CLAIM THE CUP"
-        : `TAP ⚽ FOR STAGE ${hud.stage + 1}`
+        : `TAP ⚽ FOR STAGE ${hud.stage + 1} · ${nextStageName}`
       : hud.triesLeft > 0
       ? "TAP ⚽ TO RETRY"
       : "TAP ⚽ · FULL TIME";
@@ -329,7 +332,7 @@ export default function MagicalKicks() {
               >
                 {hud.msg.tone === "goal" && (
                   <div className="text-center text-[10px] tracking-[0.4em] font-bold opacity-90 mb-1">
-                    STAGE {hud.stage} CLEAR
+                    STAGE {hud.stage} · {hud.stageName} · CLEAR
                   </div>
                 )}
                 <div
@@ -461,6 +464,9 @@ export default function MagicalKicks() {
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
                   {hud.stage}
                   <span className="text-slate-500 text-xs">/{TOTAL_STAGES}</span>
+                </span>
+                <span className="hidden md:inline text-[9px] font-bold tracking-[0.15em] text-amber-300/90">
+                  {hud.stageName}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
