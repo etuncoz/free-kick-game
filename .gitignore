@@ -16,3 +16,8 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code local tooling
+.agents/
+.claude/settings.local.json
+skills-lock.json
