@@ -278,8 +278,14 @@ export default function MagicalKicks() {
 
   return (
     <div
-      className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-3 select-none"
-      style={{ fontFamily: "'Space Grotesk', ui-sans-serif, system-ui" }}
+      className="min-h-dvh w-full bg-slate-950 flex flex-col items-center justify-center p-1.5 sm:p-3 select-none"
+      style={{
+        fontFamily: "'Space Grotesk', ui-sans-serif, system-ui",
+        // one tap = one action, never a double-tap zoom, on the rapid
+        // HEIGHT/DIRECTION/SWERVE triple tap
+        touchAction: "manipulation",
+        paddingBottom: "max(0.375rem, env(safe-area-inset-bottom))",
+      }}
     >
       <style>{`
         @keyframes popIn { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.08) } 100% { transform: scale(1); opacity: 1 } }
@@ -289,10 +295,15 @@ export default function MagicalKicks() {
 
       <div className="w-full max-w-4xl">
         {/* game canvas */}
+        {/* the whole pitch view is a tap target (essential on touch, where
+            hitting the small ⚽ three times in rhythm is fiddly); the button
+            below stops pointer propagation so its own taps fire exactly once */}
         <div
           ref={wrapRef}
-          className="relative w-full aspect-[16/10] rounded-xl overflow-hidden ring-1 ring-blue-500/30 shadow-2xl shadow-blue-900/40"
-          aria-label="Free kick pitch view"
+          onPointerDown={onAction}
+          role="button"
+          className="relative w-full aspect-[16/10] rounded-xl overflow-hidden ring-1 ring-blue-500/30 shadow-2xl shadow-blue-900/40 cursor-pointer"
+          aria-label="Free kick pitch view - tap to lock gauges and kick"
         >
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
@@ -300,6 +311,7 @@ export default function MagicalKicks() {
               and for advancing every other phase transition */}
           <button
             onClick={onAction}
+            onPointerDown={(e) => e.stopPropagation()}
             aria-label={
               hud.phase === "aim1"
                 ? "Lock height"
@@ -362,9 +374,11 @@ export default function MagicalKicks() {
             </div>
           )}
 
-          {/* menu */}
+          {/* menu - full-screen on phones (the short 16/10 canvas would clip
+              it), confined to the pitch view from `sm` up. Still inside the
+              wrapper, so tapping anywhere starts the game. */}
           {hud.phase === "menu" && (
-            <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
               <h1 className="text-4xl sm:text-6xl text-white leading-none" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
                 FREE KICK
@@ -390,9 +404,9 @@ export default function MagicalKicks() {
             </div>
           )}
 
-          {/* game over */}
+          {/* game over - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "gameover" && (
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">CUP RUN OVER</div>
               <div className="text-5xl sm:text-6xl text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
                 {hud.score}
@@ -416,9 +430,9 @@ export default function MagicalKicks() {
             </div>
           )}
 
-          {/* cup won */}
+          {/* cup won - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "won" && (
-            <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
               <div
                 className="text-7xl sm:text-8xl anim"
@@ -453,9 +467,12 @@ export default function MagicalKicks() {
             outside the aim phases, so the layout never shifts) so it never
             covers the kicker or the ball, and keeps stats + gauges in one
             place the player only has to glance at once */}
-        <div className="mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl overflow-hidden text-slate-200">
-          <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5 border-b border-blue-500/20">
-            <div className="flex items-center gap-4 sm:gap-6">
+        <div className="mt-1.5 sm:mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl overflow-hidden text-slate-200">
+          {/* below `sm` this wraps into two rows (scores left group, pitch
+              conditions right group) instead of crowding six stats onto one
+              360px line */}
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6 py-2 sm:py-2.5 border-b border-blue-500/20">
+            <div className="flex items-center gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>SCORE</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
@@ -493,7 +510,7 @@ export default function MagicalKicks() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>DISTANCE</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
@@ -527,7 +544,7 @@ export default function MagicalKicks() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4 sm:gap-6 px-4 sm:px-6 py-3">
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-6 px-3 sm:px-6 py-2 sm:py-3">
           {GAUGES.map(({ key, label }) => (
             <div key={key} className="flex flex-col items-center">
               <div
@@ -586,7 +603,7 @@ export default function MagicalKicks() {
           </div>
         </div>
 
-        <div className="mt-2 text-center text-[11px] text-slate-500">
+        <div className="mt-2 hidden sm:block text-center text-[11px] text-slate-500">
           Prototype of the three-click free kick mechanic · React + Canvas · tuned for touch and mouse
         </div>
       </div>
