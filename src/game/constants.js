@@ -16,6 +16,8 @@ export const PENALTY_BOX_DEPTH = 16.5; // metres, box edge from the goal line
 //   wallJumpChance - overrides the default 0.8 jump probability
 //   kpSigma        - overrides STAGE_KP_SIGMA (lower = sharper keeper)
 //   windMinFrac    - wind always rolls at least this fraction of the cap
+// These ten are the authored ARCHETYPES; the full 50-stage run revisits
+// them lap after lap via stageSpec() below.
 export const STAGES = [
   { d: 19.0, gx: 0.0, maxWindKmh: 0, name: "THE OPENER" },
   { d: 20.0, gx: 3.5, maxWindKmh: 2, name: "OFF CENTRE" },
@@ -28,8 +30,33 @@ export const STAGES = [
   { d: 28.5, gx: -10.0, maxWindKmh: 9, name: "THE FORTRESS", mods: { wallN: 5, kpSigma: 0.7 } },
   { d: 30.0, gx: 10.0, maxWindKmh: 10, name: "THE FINAL", mods: { windMinFrac: 0.5, kpSigma: 0.8 } },
 ];
-export const TOTAL_STAGES = STAGES.length;
+export const STAGES_PER_LAP = STAGES.length;
+export const LAPS = 5;
+export const TOTAL_STAGES = STAGES_PER_LAP * LAPS; // a 50-stage marathon
+export const CUP_EVERY = STAGES_PER_LAP; // clearing every 10th stage wins a cup
 export const TRIES_PER_STAGE = 5;
+
+const LAP_SUFFIX = ["", " II", " III", " IV", " V"];
+
+// The effective spec for any stage of the run. Lap 0 is the authored table
+// verbatim; each later lap revisits the same ten kicks harder: further out
+// (+1.5 m per lap, capped at a still-kickable 35 m) and with a sharper
+// keeper (-6% prediction noise per lap). Wind also escalates per lap - see
+// the wind scaling block in this function.
+export function stageSpec(stage) {
+  const lap = Math.floor((stage - 1) / STAGES_PER_LAP);
+  const base = STAGES[(stage - 1) % STAGES_PER_LAP];
+  const mods = { ...(base.mods || {}) };
+  mods.kpSigma = (mods.kpSigma ?? STAGE_KP_SIGMA) * (1 - 0.06 * lap);
+  return {
+    d: Math.min(35, base.d + lap * 1.5),
+    gx: base.gx,
+    maxWindKmh: base.maxWindKmh,
+    name: base.name + LAP_SUFFIX[lap],
+    lap,
+    mods,
+  };
+}
 export const STAGE_KP_SIGMA = 0.9; // keeper prediction noise, constant all run
 // gauge oscillation speed, constant all run - eased from the original 1.4
 // (mid-range of the old per-kick ramp) after playtesting found it too fast

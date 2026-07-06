@@ -43,16 +43,18 @@ The late-curl misread test was re-aimed to gx - 1.2 (keeper stays standing for b
 Added permanent regression test: corner aim GOAL vs exact-guess keeper, -3.0 SAVED. 31 tests pass. Commit 8f5a403.
 
 ## Phase 3: Mobile HUD stat row distribution (task 3)
-Status: Not started
+Status: Complete (visual check deferred to Phase 8)
 
-- [ ] In MagicalKicks.jsx, make the two stat groups each span the full width on phones with `justify-between` (SCORE / STAGE / TRIES row and DISTANCE / WIND / mute row), reverting to the grouped single-row layout from `sm` up
-- [ ] Commit
+- [x] In MagicalKicks.jsx, make the two stat groups each span the full width on phones with `justify-between` (SCORE / STAGE / TRIES row and DISTANCE / WIND / mute row), reverting to the grouped single-row layout from `sm` up
+- [x] Commit
 
 ### Verification Plan
 - Vite dev server + Chrome at ~449px width: both stat rows spread edge to edge, no dead right space; desktop width unchanged
 
 ### Phase Summary
-_(write when phase completes)_
+Both stat group containers got `w-full sm:w-auto justify-between sm:justify-start`: below `sm` each group wraps to its own full-width row and distributes its three stats edge to edge; from `sm` up the original grouped layout is untouched.
+Commit 671f4a3.
+NOTE: the Chrome extension was not connected during this phase, so the visual check in the Verification Plan is still owed - it is folded into Phase 8's E2E pass.
 
 ## Phase 4: 50-stage cup run, a cup every 10 stages (task 5)
 Status: Not started

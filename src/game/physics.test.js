@@ -1,15 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  CUP_EVERY,
   DIR_GOAL_WINDOW,
   GOAL_HALF,
+  LAPS,
   STAGES,
+  STAGES_PER_LAP,
   STAGE_GAUGE_SPEED,
   STAGE_KP_SIGMA,
+  TOTAL_STAGES,
   TRIES_PER_STAGE,
   WIND_UNIT_KMH,
+  stageSpec,
 } from "./constants";
 import {
   KP_CURL_MISREAD,
+  advanceOutcome,
   createGameState,
   launch,
   newScenario,
@@ -105,6 +111,87 @@ describe("newScenario (stage mode)", () => {
         expect(g.wallN).toBe(n);
       }
     }
+  });
+});
+
+describe("the 50-stage marathon (stageSpec)", () => {
+  it("runs five laps of the ten archetypes", () => {
+    expect(TOTAL_STAGES).toBe(50);
+    expect(STAGES_PER_LAP).toBe(10);
+    expect(LAPS).toBe(5);
+    expect(CUP_EVERY).toBe(10);
+  });
+
+  it("lap 0 is the authored table verbatim", () => {
+    STAGES.forEach((st, i) => {
+      const spec = stageSpec(i + 1);
+      expect(spec.d).toBe(st.d);
+      expect(spec.gx).toBe(st.gx);
+      expect(spec.name).toBe(st.name);
+      expect(spec.lap).toBe(0);
+    });
+  });
+
+  it("later laps revisit the same archetype under a lap suffix", () => {
+    expect(stageSpec(11).name).toBe("THE OPENER II");
+    expect(stageSpec(23).name).toBe("THE CAT III");
+    expect(stageSpec(50).name).toBe("THE FINAL V");
+    expect(stageSpec(44).gx).toBe(STAGES[3].gx);
+  });
+
+  it("distance creeps 1.5m per lap and caps at 35", () => {
+    expect(stageSpec(11).d).toBeCloseTo(STAGES[0].d + 1.5, 9);
+    expect(stageSpec(41).d).toBeCloseTo(STAGES[0].d + 6, 9);
+    expect(stageSpec(50).d).toBe(35); // 30 + 6 would overshoot the cap
+  });
+
+  it("the keeper sharpens a little every lap", () => {
+    const lap0 = stageSpec(1).mods.kpSigma;
+    const lap4 = stageSpec(41).mods.kpSigma;
+    expect(lap0).toBe(STAGE_KP_SIGMA);
+    expect(lap4).toBeCloseTo(STAGE_KP_SIGMA * (1 - 0.24), 9);
+  });
+
+  it("newScenario builds a sane scenario for every one of the 50 stages", () => {
+    for (let stage = 1; stage <= TOTAL_STAGES; stage++) {
+      const g = createGameState();
+      g.stage = stage;
+      const patch = newScenario(g);
+      expect(g.D).toBeGreaterThan(0);
+      expect(g.wallZ).toBeLessThanOrEqual(9.15);
+      expect(patch.stageName).toBe(stageSpec(stage).name);
+      expect(patch.triesLeft).toBe(TRIES_PER_STAGE);
+    }
+  });
+});
+
+describe("advanceOutcome (run flow)", () => {
+  const after = (stage, result, triesLeft = TRIES_PER_STAGE) => {
+    const g = createGameState();
+    g.stage = stage;
+    g.result = result;
+    g.triesLeft = triesLeft;
+    return advanceOutcome(g);
+  };
+
+  it("an ordinary goal moves to the next stage", () => {
+    expect(after(1, "GOAL")).toBe("next");
+    expect(after(49, "GOAL")).toBe("next");
+  });
+
+  it("every 10th stage cleared awards a cup mid-run", () => {
+    expect(after(10, "GOAL")).toBe("cup");
+    expect(after(20, "GOAL")).toBe("cup");
+    expect(after(40, "GOAL")).toBe("cup");
+  });
+
+  it("clearing stage 50 wins the run outright", () => {
+    expect(after(50, "GOAL")).toBe("won");
+  });
+
+  it("a miss retries while tries remain, then knocks the run out", () => {
+    expect(after(7, "SAVED", 3)).toBe("retry");
+    expect(after(7, "WIDE", 0)).toBe("gameover");
   });
 });
 

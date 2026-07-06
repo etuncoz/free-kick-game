@@ -2,12 +2,14 @@ import {
   BALL_R,
   CURL_ACCEL,
   DIR_GOAL_WINDOW,
+  CUP_EVERY,
   GOAL_H,
   GOAL_HALF,
-  STAGES,
   STAGE_GAUGE_SPEED,
   STAGE_KP_SIGMA,
+  TOTAL_STAGES,
   TRIES_PER_STAGE,
+  stageSpec,
   WIND_UNIT_KMH,
   clamp,
   easeOut,
@@ -56,6 +58,7 @@ export function createGameState() {
     triesLeft: TRIES_PER_STAGE,
     goals: 0,
     streak: 0,
+    cups: 0, // cups claimed this run, one per CUP_EVERY stages cleared
     crowd: null,
     D: 22,
     gx: 0,
@@ -95,10 +98,23 @@ export function gaugePos(g, key) {
   return ping(g.gaugeT * g.gaugeSpeed * mult);
 }
 
+// what tapping through a result banner should lead to. Kept here (pure,
+// reads only the game object) so the whole 50-stage run flow - cups every
+// CUP_EVERY stages, the final win, retries and knockouts - is unit-testable
+// without the React shell.
+export function advanceOutcome(g) {
+  if (g.result === "GOAL") {
+    if (g.stage >= TOTAL_STAGES) return "won";
+    if (g.stage % CUP_EVERY === 0) return "cup";
+    return "next";
+  }
+  return g.triesLeft > 0 ? "retry" : "gameover";
+}
+
 export function newScenario(g) {
-  // the kick spot is pinned by the stage table - all tries of a stage are
+  // the kick spot is pinned by the stage spec - all tries of a stage are
   // taken from the exact same place; only wind/wall/keeper noise re-roll
-  const st = STAGES[g.stage - 1];
+  const st = stageSpec(g.stage);
   g.D = st.d;
   g.gx = st.gx;
   g.wallZ = Math.min(9.15, g.D * 0.5);
