@@ -40,18 +40,21 @@ const LAP_SUFFIX = ["", " II", " III", " IV", " V"];
 
 // The effective spec for any stage of the run. Lap 0 is the authored table
 // verbatim; each later lap revisits the same ten kicks harder: further out
-// (+1.5 m per lap, capped at a still-kickable 35 m) and with a sharper
-// keeper (-6% prediction noise per lap). Wind also escalates per lap - see
-// the wind scaling block in this function.
+// (+1.5 m per lap, capped at a still-kickable 35 m), a sharper keeper
+// (-6% prediction noise per lap), and windier - the cap grows 25% of the
+// authored value per lap, landing on exactly 20 km/h at THE FINAL V, and
+// a rising floor (15% of the cap per lap, at most 60%) stops late stages
+// from ever rolling a calm day. Windless archetypes stay windless.
 export function stageSpec(stage) {
   const lap = Math.floor((stage - 1) / STAGES_PER_LAP);
   const base = STAGES[(stage - 1) % STAGES_PER_LAP];
   const mods = { ...(base.mods || {}) };
   mods.kpSigma = (mods.kpSigma ?? STAGE_KP_SIGMA) * (1 - 0.06 * lap);
+  mods.windMinFrac = Math.max(mods.windMinFrac ?? 0, Math.min(0.6, 0.15 * lap));
   return {
     d: Math.min(35, base.d + lap * 1.5),
     gx: base.gx,
-    maxWindKmh: base.maxWindKmh,
+    maxWindKmh: base.maxWindKmh * (1 + 0.25 * lap),
     name: base.name + LAP_SUFFIX[lap],
     lap,
     mods,

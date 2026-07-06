@@ -59,21 +59,26 @@ NOTE: the Chrome extension was not connected during this phase, so the visual ch
 ## Phase 4: 50-stage cup run, a cup every 10 stages (task 5)
 Status: Not started
 
-- [ ] Restructure constants.js: keep the 10 authored stages as archetypes; add `stageSpec(stage)` returning the effective `{d, gx, maxWindKmh, name, mods, lap}` for stages 1-50 (lap = floor((stage-1)/10); names get II/III/IV/V suffixes; distance +1.5m per lap capped at 35; keeper sigma sharpens ~6% per lap)
-- [ ] `TOTAL_STAGES = 50`, `STAGES_PER_LAP = 10`, `CUP_EVERY = 10`
-- [ ] physics.js `newScenario` reads `stageSpec(g.stage)` instead of `STAGES[g.stage-1]`
-- [ ] Add `advanceOutcome(g)` helper in physics.js returning `"cup" | "next" | "won" | "retry" | "gameover"` so the flow is unit-testable
-- [ ] MagicalKicks.jsx: `advance()` uses `advanceOutcome`; a `"cup"` outcome shows a cup celebration overlay (cup N of 5) and continues to the next stage; the stage-50 cup ends the run as `won`
-- [ ] storage.js: persist best cups-in-a-run (`fkl.cups`), keep legacy `cupWon` semantics (any cup ever); menu best line shows cups
-- [ ] Update tests: stage spec pinning across laps, name suffixes, `advanceOutcome` flow, storage round-trip
-- [ ] Commit
+- [x] Restructure constants.js: keep the 10 authored stages as archetypes; add `stageSpec(stage)` returning the effective `{d, gx, maxWindKmh, name, mods, lap}` for stages 1-50 (lap = floor((stage-1)/10); names get II/III/IV/V suffixes; distance +1.5m per lap capped at 35; keeper sigma sharpens ~6% per lap)
+- [x] `TOTAL_STAGES = 50`, `STAGES_PER_LAP = 10`, `CUP_EVERY = 10`
+- [x] physics.js `newScenario` reads `stageSpec(g.stage)` instead of `STAGES[g.stage-1]`
+- [x] Add `advanceOutcome(g)` helper in physics.js returning `"cup" | "next" | "won" | "retry" | "gameover"` so the flow is unit-testable
+- [x] MagicalKicks.jsx: `advance()` uses `advanceOutcome`; a `"cup"` outcome shows a cup celebration overlay (cup N of 5) and continues to the next stage; the stage-50 cup ends the run as `won`
+- [x] storage.js: persist best cups-in-a-run (`fkl.cups`), keep legacy `cupWon` semantics (any cup ever); menu best line shows cups
+- [x] Update tests: stage spec pinning across laps, name suffixes, `advanceOutcome` flow, storage round-trip
+- [x] Commit
 
 ### Verification Plan
 - `npm test` passes with the new suites
 - Dev-console sim: set `__game.stage = 10`, score, expect the cup overlay; stage 50 expects the win screen
 
 ### Phase Summary
-_(write when phase completes)_
+stageSpec(stage) in constants.js derives any of the 50 stages from the 10 authored archetypes (lap suffixes via LAP_SUFFIX, d +1.5/lap capped 35, effective mods.kpSigma = (mod ?? STAGE_KP_SIGMA) * (1 - 0.06 * lap); wind cap intentionally NOT yet scaled - that is Phase 5).
+physics.js: newScenario reads stageSpec; advanceOutcome(g) added; g.cups counts cups this run.
+MagicalKicks.jsx: advance() switches on advanceOutcome; new "cup" phase with a CUP SECURED ceremony overlay handing to the next stage; won screen is now a five-trophy FREE KICK LEGEND screen; menu/game-over copy updated; STAGE stat shows a 🏆N chip mid-run; hud gained cups/bestCups (cupWon dropped).
+storage.js rewritten: fkl.cups (best cups in one run), legacy fkl.cupWon folded in on read; saveRunEnd takes {stage, score, cups}.
+Tests: new stageSpec + advanceOutcome suites in physics.test.js, new storage.test.js with a stubbed localStorage. 46 tests pass, production build clean. Commit a261598.
+The dev-console cup/win sim is deferred to Phase 8 with the rest of the browser checks (extension offline).
 
 ## Phase 5: Wind scaling to 20 km/h (task 4)
 Status: Not started

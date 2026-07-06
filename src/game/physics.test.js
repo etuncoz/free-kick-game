@@ -56,15 +56,16 @@ describe("newScenario (stage mode)", () => {
     });
   });
 
-  it("never rolls wind above the stage cap", () => {
-    STAGES.forEach((st, i) => {
-      for (let roll = 0; roll < 200; roll++) {
+  it("never rolls wind above the stage cap, all 50 stages", () => {
+    for (let stage = 1; stage <= TOTAL_STAGES; stage++) {
+      const cap = stageSpec(stage).maxWindKmh;
+      for (let roll = 0; roll < 40; roll++) {
         const g = createGameState();
-        g.stage = i + 1;
+        g.stage = stage;
         newScenario(g);
-        expect(Math.hypot(g.windX, g.windZ) * WIND_UNIT_KMH).toBeLessThanOrEqual(st.maxWindKmh + 1e-9);
+        expect(Math.hypot(g.windX, g.windZ) * WIND_UNIT_KMH).toBeLessThanOrEqual(cap + 1e-9);
       }
-    });
+    }
   });
 
   it("is windless on stage 1", () => {
@@ -150,6 +151,28 @@ describe("the 50-stage marathon (stageSpec)", () => {
     const lap4 = stageSpec(41).mods.kpSigma;
     expect(lap0).toBe(STAGE_KP_SIGMA);
     expect(lap4).toBeCloseTo(STAGE_KP_SIGMA * (1 - 0.24), 9);
+  });
+
+  it("wind builds to exactly 20 km/h at THE FINAL V; calm stages stay calm", () => {
+    expect(stageSpec(50).maxWindKmh).toBe(20);
+    for (let lap = 0; lap < LAPS; lap++) {
+      expect(stageSpec(1 + lap * STAGES_PER_LAP).maxWindKmh).toBe(0); // THE OPENER
+    }
+  });
+
+  it("late laps never roll a calm day: the wind floor rises per lap", () => {
+    // stage 45 = THE SIDE ROAD V: no authored windMinFrac, lap-4 floor 0.6
+    const spec = stageSpec(45);
+    expect(spec.mods.windMinFrac).toBeCloseTo(0.6, 9);
+    const capUnits = spec.maxWindKmh / WIND_UNIT_KMH;
+    for (let roll = 0; roll < 200; roll++) {
+      const g = createGameState();
+      g.stage = 45;
+      newScenario(g);
+      expect(Math.hypot(g.windX, g.windZ)).toBeGreaterThanOrEqual(0.6 * capUnits - 1e-9);
+    }
+    // an authored floor above the lap floor is kept (SWIRLING GALE II: 0.75)
+    expect(stageSpec(16).mods.windMinFrac).toBeCloseTo(0.75, 9);
   });
 
   it("newScenario builds a sane scenario for every one of the 50 stages", () => {
