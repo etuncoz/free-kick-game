@@ -101,15 +101,15 @@ Badges are `gaugeBadgeRefs`-driven spans restyled inside `updateGaugeDom` (gold 
 Verified: marker sampled two frames apart moved 47.96% -> 63.96% (desktop) and 42% -> 58% (phone), so the glide survived; screenshots `p3-aim1/2/3-{desktop,phone}` in the scratchpad match the SS card layout; vitest 58/58.
 
 ## Phase 4: Overlays and ball button
-Status: Not started
+Status: Complete
 
 All in `src/game/MagicalKicks.jsx`.
 
-- [ ] Result banner: flat navy panel with a 2px border (emerald for goal, rose for miss), pixel font sizes tuned (the current 6xl title is too wide in Press Start 2P), keep popIn animation and the tries-left line.
-- [ ] Menu overlay: pixel-font title lockup, flat panel styling, retuned paragraph size/leading for readability in the pixel face, keep the best-run line and the floaty CTA.
-- [ ] Cup ceremony, game over, and win overlays: same flat-panel + pixel-font treatment, gold accents kept.
-- [ ] Ball button: flat blue disc (no gradient), squared-off ring, keep the floaty animation, hover/active scaling, and all aria labels.
-- [ ] Sweep for leftover Cascadia references and gradient utility classes (`bg-gradient-to-b`) that no longer fit the flat language.
+- [x] Result banner: flat navy panel with a 2px border (emerald for goal, rose for miss), pixel font sizes tuned (the current 6xl title is too wide in Press Start 2P), keep popIn animation and the tries-left line.
+- [x] Menu overlay: pixel-font title lockup, flat panel styling, retuned paragraph size/leading for readability in the pixel face, keep the best-run line and the floaty CTA.
+- [x] Cup ceremony, game over, and win overlays: same flat-panel + pixel-font treatment, gold accents kept.
+- [x] Ball button: flat blue disc (no gradient), squared-off ring, keep the floaty animation, hover/active scaling, and all aria labels.
+- [x] Sweep for leftover Cascadia references and gradient utility classes (`bg-gradient-to-b`) that no longer fit the flat language.
 
 ### Verification Plan
 - `npx vitest run` passes.
@@ -117,10 +117,26 @@ All in `src/game/MagicalKicks.jsx`.
 - `grep -ri "cascadia" src index.html` returns nothing.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-07.
+Result banner sits on a solid `bg-slate-950/90` panel with a 2px emerald/rose border (no backdrop blur); all four fullscreen overlays dropped their `backdrop-blur-[2px]`; the ball button lost its `bg-gradient-to-b` for flat `bg-blue-500`.
+The overlay font-size retunes had already landed in Phase 1, so this phase was mostly de-gradienting; the Cascadia/gradient/blur sweep greps are clean (only prose comments mention "gradient").
+Verified with `shoot4.mjs` (scratchpad): a scripted walkthrough that forces outcomes by teleporting `__game.ball` mid-flight (goal: into the top corner; miss: wide right) and reaches cup/gameover/won via the dev admin stage selector (stage 10 goal -> cup, one-try miss -> gameover, stage 50 goal -> won).
+All ten captures (5 states x 2 sizes) look consistent, nothing overflows at 390px; vitest 58/58; `npm run build` succeeds.
 
 ## Final Recap
-_(write when all phases complete: summary of the entire piece of work)_
+The whole game now wears the "Twilight Pixel" look from Ege's design mock, as a pure presentation change - physics, storage, audio, and game flow untouched (vitest suite unchanged and green throughout).
+The four commits on `feature/retro-ui`:
+
+1. `index.html` + `index.css` + font plumbing: Press Start 2P everywhere (DOM and canvas), `font-synthesis: none`, all type sizes retuned for the wide face.
+2. `render.js`: gradient-free flat scene - grid dot-matrix crowd of two-pixel people with sway/hop, flat navy sky, flat polygonal floodlight beams, flat green pitch with vertical world-x mowing stripes, flat dirt patch, chunky single-path goal frame, flat ring + starburst goal flash, square-headed sprites (kicker in the SS white kit with the blue "10" disc), flat ball with one rotating pentagon, square trail pixels, no vignette.
+3. `MagicalKicks.jsx` HUD: standalone stats card (gold SCORE, DIST, glowing tries dots, ♪ mute) and three gauge cards with numbered badges (gold when active, driven by `updateGaugeDom`) over 20-cell segmented tracks (HEIGHT hsl ramp, DIRECTION gold goal-window cells, SWERVE center notch); the marker still glides continuously.
+4. `MagicalKicks.jsx` overlays: flat solid result banner, no backdrop blurs, flat ball button.
+
+Verification tooling: Playwright (installed in the session scratchpad, chromium cached machine-wide) driving the dev server; outcomes forced via `window.__game` ball teleports; stage jumps via the dev-only admin selector.
 
 ## Deployment Plan
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Push `feature/retro-ui` to origin (needs Ege's go-ahead; never push unasked).
+2. Open a PR into `development` titled "Retro UI: Twilight Pixel restyle". Note in the description that it branches off `feature/admin-level-panel`, so that PR must merge first (or this PR will show its commits until rebased).
+3. Ege reviews and merges (he approves every PR himself).
+4. Deploy follows the existing GitHub Pages runbook (`plans/github-pages-deploy.md`): merge `development` into `main` via PR; the Pages workflow ships `dist/` (it has a built-in retry for the transient first-attempt failure).
+5. Post-deploy smoke check on the published URL: menu renders in Press Start 2P, crowd is the dot-matrix grid, gauges are segmented cards.

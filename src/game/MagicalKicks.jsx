@@ -397,7 +397,7 @@ export default function MagicalKicks() {
                 ? "Play again"
                 : "Kick off"
             }
-            className={`anim absolute z-20 bottom-3 right-3 sm:bottom-4 sm:right-4 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-blue-400 to-blue-600 shadow-lg shadow-blue-900/60 ring-2 ring-white/40 flex items-center justify-center text-3xl sm:text-4xl transition-all duration-200 ${
+            className={`anim absolute z-20 bottom-3 right-3 sm:bottom-4 sm:right-4 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-blue-500 shadow-lg shadow-blue-900/60 ring-2 ring-white/50 flex items-center justify-center text-3xl sm:text-4xl transition-all duration-200 ${
               ballLive ? "opacity-100 hover:scale-105 active:scale-95" : "opacity-0 pointer-events-none"
             }`}
             style={{ animation: ballLive ? "floaty 2s ease-in-out infinite" : "none" }}
@@ -409,10 +409,10 @@ export default function MagicalKicks() {
           {hud.msg && hud.phase === "result" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <div
-                className={`anim px-8 py-3 rounded-2xl border-2 backdrop-blur-sm ${
+                className={`anim px-8 py-3 rounded-xl border-2 bg-slate-950/90 ${
                   hud.msg.tone === "goal"
-                    ? "bg-emerald-500/20 border-emerald-300 text-emerald-200"
-                    : "bg-rose-500/15 border-rose-300/70 text-rose-200"
+                    ? "border-emerald-300 text-emerald-200"
+                    : "border-rose-300/80 text-rose-200"
                 }`}
                 style={{ animation: "popIn .35s ease-out both" }}
               >
@@ -444,7 +444,7 @@ export default function MagicalKicks() {
               it), confined to the pitch view from `sm` up. Still inside the
               wrapper, so tapping anywhere starts the game. */}
           {hud.phase === "menu" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
               <h1 className="text-2xl sm:text-4xl text-white leading-snug" style={DISPLAY_FONT}>
                 FREE KICK
@@ -474,7 +474,7 @@ export default function MagicalKicks() {
 
           {/* game over - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "gameover" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">CUP RUN OVER</div>
               <div className="text-3xl sm:text-4xl text-white" style={DISPLAY_FONT}>
                 {hud.score}
@@ -508,7 +508,7 @@ export default function MagicalKicks() {
           {/* cup ceremony - every CUP_EVERY-th stage cleared mid-run; the
               run continues, so this hands over to the next stage */}
           {hud.phase === "cup" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">
                 STAGE {hud.stage} · {hud.stageName} · CLEARED
               </div>
@@ -541,7 +541,7 @@ export default function MagicalKicks() {
 
           {/* all cups won - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "won" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
               <div
                 className="text-5xl sm:text-6xl anim tracking-tight"
