@@ -1,0 +1,134 @@
+# Game Improvements: 50-Stage Cup Run, Regulation Goal, Stage Personalities, Visual Polish
+
+Seven gameplay/UI improvements to Free Kick Legend, developed on `feature/game-improvements`, one local commit per task, PR to `development` at the end.
+Decisions were confirmed with Ege on 2026-07-06: 5 laps of the 10 archetypes for stages 11-50, keeper reach scaled down with the regulation goal, all five polish items, and the mobile HUD fix targets the uneven stat-row distribution seen in his screenshot.
+
+## For Future Agents
+As work proceeds: mark checkboxes `- [x]` as items complete; when a phase is done, set its status to `Complete` and write its **Phase Summary** (what was done, key decisions, anything needed to continue with zero context); run the phase's **Verification Plan** and record the result before moving on.
+When all phases are done, fill in **Final Recap** and **Deployment Plan**.
+Key constraints: never add the agent as commit co-author; no em dash anywhere; PR goes to `development`; never push without permission; `npm test` runs vitest.
+
+## Phase 1: Remove the perfect-lock feature (task 1)
+Status: Not started
+
+- [ ] Delete `PERFECT_BANDS`, `PERFECT_POINTS`, `PURE_STRIKE_POINTS`, `PURE_STRIKE_SPEED_BONUS` from `src/game/constants.js`
+- [ ] Delete `perfectLock()` from `src/game/physics.js`; drop `g.perfects` / `g.pureStrike` state, the launch speed bonus, and the perfect/pure-strike scoring + `resultDetail` branches
+- [ ] Remove the gold band overlays, `lockedPerfect` marker/label colouring, and `PERFECT_BANDS` import from `src/game/MagicalKicks.jsx`
+- [ ] Remove the perfect-lock test suite and perfect-related assertions from `src/game/physics.test.js`
+- [ ] Commit
+
+### Verification Plan
+- `npm test` passes; a case-insensitive grep for `perfect|pure` in `src/` returns nothing
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 2: Regulation goal + keeper reach scaling (task 2)
+Status: Not started
+
+- [ ] Set `GOAL_HALF = 3.66`, `GOAL_H = 2.44` in constants.js (regulation 7.32 x 2.44)
+- [ ] Express keeper reach relative to the goal size in physics.js so corners stay his weak spot: dive reach clamp (was ±3.35), initial position clamp (was ±2.2), and predY clamp (was 2.3) all scale by the goal ratio
+- [ ] Commit
+
+### Verification Plan
+- `npm test` passes (aiming tests derive from GOAL_HALF so they self-adjust)
+- Corner-aim shot beats a correctly-guessing keeper in a scripted sim; a central shot is still saved
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 3: Mobile HUD stat row distribution (task 3)
+Status: Not started
+
+- [ ] In MagicalKicks.jsx, make the two stat groups each span the full width on phones with `justify-between` (SCORE / STAGE / TRIES row and DISTANCE / WIND / mute row), reverting to the grouped single-row layout from `sm` up
+- [ ] Commit
+
+### Verification Plan
+- Vite dev server + Chrome at ~449px width: both stat rows spread edge to edge, no dead right space; desktop width unchanged
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 4: 50-stage cup run, a cup every 10 stages (task 5)
+Status: Not started
+
+- [ ] Restructure constants.js: keep the 10 authored stages as archetypes; add `stageSpec(stage)` returning the effective `{d, gx, maxWindKmh, name, mods, lap}` for stages 1-50 (lap = floor((stage-1)/10); names get II/III/IV/V suffixes; distance +1.5m per lap capped at 35; keeper sigma sharpens ~6% per lap)
+- [ ] `TOTAL_STAGES = 50`, `STAGES_PER_LAP = 10`, `CUP_EVERY = 10`
+- [ ] physics.js `newScenario` reads `stageSpec(g.stage)` instead of `STAGES[g.stage-1]`
+- [ ] Add `advanceOutcome(g)` helper in physics.js returning `"cup" | "next" | "won" | "retry" | "gameover"` so the flow is unit-testable
+- [ ] MagicalKicks.jsx: `advance()` uses `advanceOutcome`; a `"cup"` outcome shows a cup celebration overlay (cup N of 5) and continues to the next stage; the stage-50 cup ends the run as `won`
+- [ ] storage.js: persist best cups-in-a-run (`fkl.cups`), keep legacy `cupWon` semantics (any cup ever); menu best line shows cups
+- [ ] Update tests: stage spec pinning across laps, name suffixes, `advanceOutcome` flow, storage round-trip
+- [ ] Commit
+
+### Verification Plan
+- `npm test` passes with the new suites
+- Dev-console sim: set `__game.stage = 10`, score, expect the cup overlay; stage 50 expects the win screen
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 5: Wind scaling to 20 km/h (task 4)
+Status: Not started
+
+- [ ] In `stageSpec`: wind cap scales `base * (1 + 0.25 * lap)` so THE FINAL V hits exactly 20 km/h; windless archetypes (THE OPENER) stay windless on every lap
+- [ ] Lower random bound rises with lap: effective `windMinFrac = max(stage mod, 0.15 * lap)` capped at 0.6
+- [ ] Tests: cap never exceeded across all 50 stages, stage 50 cap is exactly 20, min-fraction floor honoured on late laps
+- [ ] Commit
+
+### Verification Plan
+- `npm test` passes; a multi-hundred-roll sweep over stages 41-50 never rolls below the floor or above the cap
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 6: Stage characteristics (task 7)
+Status: Not started
+
+- [ ] New mods in physics.js: `wallScale` (player size + collision top + per-man width), `kpReach` (reach multiplier), `kpBias` (metres toward the near post, negative = far post), `gaugeSpeed`, `windSwirl` (rad/s wind rotation during flight), `wallJitter`
+- [ ] render.js draws wall players scaled by `wallScale`
+- [ ] Stage personalities: OPENER (wall 3, kpSigma 1.2), OFF CENTRE (kpBias -1.2), THE CAT (kpSigma 0.45, kpReach 1.15, wall 3), GREAT WALL (wall 6, no jump, wallScale 1.35), SIDE ROAD (wall 5, wallJitter 0), SWIRLING GALE (windMinFrac 0.85, windSwirl 1.5), TIGHT ANGLE (kpBias 1.8), LONG RANGE (gaugeSpeed 1.35, wall 3), FORTRESS (wall 5, wallScale 2.0, no jump, kpSigma 0.7), THE FINAL (wall 5, wallScale 1.2, jump always, windMinFrac 0.5, kpSigma 0.8)
+- [ ] Tests per personality (wall size/scale pinning, keeper bias positions, swirl rotates wind, gauge speed override)
+- [ ] Commit
+
+### Verification Plan
+- `npm test` passes; visual spot-check of the FORTRESS double-size wall in the browser
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 7: Visual polish, all five items (task 6)
+Status: Not started
+
+- [ ] Players: articulated kick swing on the kicker (backswing leg via pose), jersey numbers on wall players, keeper gloves + spread dive pose
+- [ ] Ball: black pentagon panel pattern rotating with spin, swerve-tinted curved trail, radial-gradient soft shadow
+- [ ] Stadium: crowd sway animation, camera flashes during goal celebrations, advertising boards at the stand foot, floodlight beams with haze
+- [ ] Goal: specular highlight pass on posts/crossbar, diagonal side-net threads, net sway with the wind
+- [ ] Pitch: worn dirt patch at the kick spot, penalty arc, subtle match-night vignette
+- [ ] Commit
+
+### Verification Plan
+- `npm test` still passes (render is presentation-only)
+- Browser screenshot review at mobile + desktop widths; no visible frame jank in a ~30s session
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 8: Full verification + PR to development
+Status: Not started
+
+- [ ] `npm test` green, `npm run build` clean
+- [ ] E2E in Chrome (mobile ~449px + desktop): full stage-1 playthrough, cup at stage 10 via dev hook, stat rows evenly spread, FORTRESS wall, gauge panel without gold bands
+- [ ] Ask Ege for permission to push, then push the branch and open the PR to `development` (no agent co-author lines)
+
+### Verification Plan
+- All of the above, recorded in the Phase Summary
+
+### Phase Summary
+_(write when phase completes)_
+
+## Final Recap
+_(write when all phases complete: summary of the entire piece of work)_
+
+## Deployment Plan
+_(write when all phases complete: step-by-step deployment instructions)_

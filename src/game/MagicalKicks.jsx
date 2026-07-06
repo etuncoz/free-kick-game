@@ -4,12 +4,11 @@ import {
   newScenario as physicsNewScenario,
   step as physicsStep,
   gaugePos,
-  perfectLock,
 } from "./physics";
 import { drawScene, initCrowd, resize as resizeCanvas } from "./render";
 import { createAudioController } from "./audio";
 import { loadBests, saveRunEnd } from "./storage";
-import { DIR_GOAL_WINDOW, PERFECT_BANDS, STAGES, TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
+import { DIR_GOAL_WINDOW, STAGES, TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
 
 /* ------------------------------------------------------------------
    FREE KICK LEGEND — a playable HTML prototype of the classic
@@ -170,16 +169,14 @@ export default function MagicalKicks() {
       let v = null;
       if (active) v = gaugePos(g, key);
       else if (g.locked[key] != null) v = key === "h" ? g.locked[key] : (g.locked[key] + 1) / 2;
-      // a lock inside the gold sweet-spot band stays gold instead of blue
-      const lockedPerfect = !active && v != null && perfectLock(key, v);
       if (v == null) {
         marker.style.opacity = "0";
       } else {
         marker.style.opacity = "1";
         marker.style.left = `${v * 100}%`;
-        marker.style.background = active ? "#fbbf24" : lockedPerfect ? "#f59e0b" : "#60a5fa";
+        marker.style.background = active ? "#fbbf24" : "#60a5fa";
       }
-      if (label) label.style.color = active ? "#93c5fd" : lockedPerfect ? "#fbbf24" : "rgba(148,163,184,0.85)";
+      if (label) label.style.color = active ? "#93c5fd" : "rgba(148,163,184,0.85)";
     }
   }, []);
 
@@ -578,16 +575,6 @@ export default function MagicalKicks() {
                 {key === "s" && (
                   <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/60 -translate-x-1/2" />
                 )}
-                {/* gold sweet-spot bands: lock inside one for a PERFECT;
-                    all three = PURE STRIKE (bonus points + faster ball) */}
-                {(key === "d" ? PERFECT_BANDS.d : [PERFECT_BANDS[key]]).map(([a, b]) => (
-                  <div
-                    key={a}
-                    className="absolute top-0 bottom-0 bg-amber-400/45 border-x border-amber-300/70"
-                    style={{ left: `${a * 100}%`, width: `${(b - a) * 100}%` }}
-                    aria-hidden="true"
-                  />
-                ))}
                 <div
                   ref={(el) => (gaugeMarkerRefs.current[key] = el)}
                   className="absolute -top-1.5 -bottom-1.5 w-[5px] rounded -translate-x-1/2"

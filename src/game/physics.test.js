@@ -13,7 +13,6 @@ import {
   createGameState,
   launch,
   newScenario,
-  perfectLock,
   step,
 } from "./physics";
 
@@ -229,66 +228,6 @@ describe("aiming and swerve (original-game feel)", () => {
     const rights = STAGES.filter((s) => s.gx > 3).length;
     expect(lefts).toBeGreaterThanOrEqual(3);
     expect(rights).toBeGreaterThanOrEqual(3);
-  });
-});
-
-describe("perfect locks and pure strike", () => {
-  it("evaluates the sweet-spot bands per gauge", () => {
-    expect(perfectLock("h", 0.4)).toBe(true);
-    expect(perfectLock("h", 0.3)).toBe(false);
-    // DIRECTION: a corner band inside each post is perfect, the centre is not
-    expect(perfectLock("d", 0.34)).toBe(true);
-    expect(perfectLock("d", 0.66)).toBe(true);
-    expect(perfectLock("d", 0.5)).toBe(false);
-    expect(perfectLock("s", 0.5)).toBe(true);
-    expect(perfectLock("s", 0.7)).toBe(false);
-  });
-
-  // locked values producing a pure strike: h 0.4 (in band), d gauge 0.35
-  // (left corner band) -> d = -0.3, s gauge 0.5 -> s = 0
-  const PURE = { h: 0.4, d: -0.3, s: 0 };
-
-  it("a pure strike flies faster than the same height without one", () => {
-    const speedOf = (locked) => {
-      const g = createGameState();
-      newScenario(g);
-      g.locked = locked;
-      launch(g);
-      const b = g.ball;
-      return Math.hypot(b.vx, b.vy, b.vz);
-    };
-    const pure = speedOf(PURE);
-    const plain = speedOf({ h: 0.4, d: 0, s: 0 }); // centre d: not perfect
-    expect(pure).toBeGreaterThan(plain + 0.5);
-  });
-
-  it("goal points include per-perfect and pure-strike bonuses", () => {
-    const g = flightState({ triesLeft: 5 });
-    g.perfects = { h: true, d: true, s: true };
-    g.pureStrike = true;
-    step(g, 0.033);
-    expect(g.result).toBe("GOAL");
-    // 100 base + 4 spare tries * 25 + 3 perfects * 25 + 100 pure strike
-    expect(g.lastPoints).toBe(100 + 100 + 75 + 100);
-    expect(g.resultDetail).toContain("Pure strike!");
-  });
-
-  it("a single perfect pays 25 without the pure-strike bonus", () => {
-    const g = flightState({ triesLeft: 5 });
-    g.perfects = { h: true, d: false, s: false };
-    step(g, 0.033);
-    expect(g.lastPoints).toBe(100 + 100 + 25);
-  });
-
-  it("perfects pay nothing on a miss", () => {
-    const g = flightState({ triesLeft: 5 });
-    g.perfects = { h: true, d: true, s: true };
-    g.pureStrike = true;
-    g.ball.x = g.gx + GOAL_HALF + 2.0;
-    step(g, 0.033);
-    expect(g.result).toBe("WIDE");
-    expect(g.lastPoints).toBe(0);
-    expect(g.score).toBe(0);
   });
 });
 
