@@ -20,7 +20,7 @@ import { CUP_EVERY, DIR_GOAL_WINDOW, LAPS, TOTAL_STAGES, TRIES_PER_STAGE, stageS
    physics.js, canvas drawing lives in render.js, sound in audio.js.
 ------------------------------------------------------------------- */
 
-const ARCHIVO = { fontFamily: "'Archivo Black', sans-serif" };
+const DISPLAY_FONT = { fontFamily: "'Cascadia Code', monospace", fontWeight: 700 };
 const STAT_LABEL_CLS = "text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold";
 const STAT_VALUE_CLS = "text-base sm:text-lg font-bold tabular-nums";
 
@@ -331,7 +331,7 @@ export default function MagicalKicks() {
     <div
       className="min-h-dvh w-full bg-slate-950 flex flex-col items-center justify-center p-1.5 sm:p-3 select-none"
       style={{
-        fontFamily: "'Space Grotesk', ui-sans-serif, system-ui",
+        fontFamily: "'Cascadia Code', ui-monospace, monospace",
         // one tap = one action, never a double-tap zoom, on the rapid
         // HEIGHT/DIRECTION/SWERVE triple tap
         touchAction: "manipulation",
@@ -410,7 +410,7 @@ export default function MagicalKicks() {
                 )}
                 <div
                   className="text-4xl sm:text-6xl text-center"
-                  style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+                  style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
                 >
                   {hud.msg.title}
                 </div>
@@ -433,7 +433,7 @@ export default function MagicalKicks() {
           {hud.phase === "menu" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
-              <h1 className="text-4xl sm:text-6xl text-white leading-none" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+              <h1 className="text-4xl sm:text-6xl text-white leading-none" style={DISPLAY_FONT}>
                 FREE KICK
                 <br />
                 <span className="text-blue-400">LEGEND</span>
@@ -463,7 +463,7 @@ export default function MagicalKicks() {
           {hud.phase === "gameover" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">CUP RUN OVER</div>
-              <div className="text-5xl sm:text-6xl text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+              <div className="text-5xl sm:text-6xl text-white" style={DISPLAY_FONT}>
                 {hud.score}
               </div>
               <div className="text-slate-300 text-sm mt-1 font-semibold">
@@ -510,13 +510,13 @@ export default function MagicalKicks() {
               </div>
               <h2
                 className="mt-3 text-4xl sm:text-5xl text-amber-300 leading-none"
-                style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+                style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 CUP SECURED
               </h2>
               <div className="mt-3 text-slate-300 text-sm font-semibold">
                 Cup <span className="text-amber-300 font-bold">{hud.cups}</span> of {LAPS} · score{" "}
-                <span className="text-white text-lg font-bold align-middle" style={ARCHIVO}>
+                <span className="text-white text-lg font-bold align-middle" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
@@ -543,13 +543,13 @@ export default function MagicalKicks() {
               </div>
               <h2
                 className="mt-3 text-4xl sm:text-6xl text-amber-300 leading-none"
-                style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+                style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 FREE KICK LEGEND
               </h2>
               <div className="mt-3 text-slate-300 text-sm font-semibold">
                 All {LAPS} cups claimed · final score{" "}
-                <span className="text-white text-2xl font-bold align-middle ml-1" style={ARCHIVO}>
+                <span className="text-white text-2xl font-bold align-middle ml-1" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
@@ -605,7 +605,7 @@ export default function MagicalKicks() {
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>SCORE</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
                 {hud.streak > 1 && (
@@ -616,7 +616,7 @@ export default function MagicalKicks() {
               </div>
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>STAGE</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.stage}
                   <span className="text-slate-500 text-xs">/{TOTAL_STAGES}</span>
                 </span>
@@ -652,14 +652,14 @@ export default function MagicalKicks() {
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>DISTANCE</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.distance != null ? hud.distance : "—"}
                   {hud.distance != null && <span className="text-slate-500 text-xs">m</span>}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>WIND</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {/* compass arrow: up = blowing toward the goal, right =
                       blowing right across the pitch, down = into your face */}
                   <span

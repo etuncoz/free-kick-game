@@ -58,7 +58,8 @@ npm run build    # production build, outputs to dist/
 ```
 
 Notes:
-- Fonts (`Archivo Black`, `Space Grotesk`) load via a `<link>` in `index.html` (moved out of the component's inline `<style>` for production).
+- The app font is `Cascadia Code` (weights 400/600/700), loaded via a `<link>` in `index.html` (moved out of the component's inline `<style>` for production).
+  It replaced the original `Archivo Black` (display) + `Space Grotesk` (body) pair; the display role now maps to Cascadia at weight 700 (`DISPLAY_FONT` in `MagicalKicks.jsx`, plus the two `ctx.font` uses in `render.js`).
 - Audio is synthesized with WebAudio (no asset files). The `AudioContext` is created lazily on the first user gesture, as browsers require.
 - Run records (best stage reached, best score, cup won) persist across reloads via localStorage (`src/game/storage.js`).
   There is deliberately no mid-run resume: reloading starts a fresh run at stage 1.
