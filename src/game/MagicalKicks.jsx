@@ -20,9 +20,11 @@ import { CUP_EVERY, DIR_GOAL_WINDOW, LAPS, TOTAL_STAGES, TRIES_PER_STAGE, stageS
    physics.js, canvas drawing lives in render.js, sound in audio.js.
 ------------------------------------------------------------------- */
 
-const DISPLAY_FONT = { fontFamily: "'Cascadia Code', monospace", fontWeight: 700 };
-const STAT_LABEL_CLS = "text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold";
-const STAT_VALUE_CLS = "text-base sm:text-lg font-bold tabular-nums";
+// Press Start 2P ships a single weight; font-synthesis is disabled globally
+// (index.css) so bold utilities never smear the pixel glyphs
+const DISPLAY_FONT = { fontFamily: "'Press Start 2P', monospace" };
+const STAT_LABEL_CLS = "text-[7px] sm:text-[8px] tracking-[0.15em] text-blue-300/80 font-semibold";
+const STAT_VALUE_CLS = "text-xs sm:text-sm font-bold tabular-nums";
 
 const GAUGE_PHASE = { h: "aim1", d: "aim2", s: "aim3" };
 const GAUGES = [
@@ -292,7 +294,7 @@ export default function MagicalKicks() {
   // persisted-record line shared by the menu / game-over / win overlays
   const bestLine =
     hud.bestStage > 0 ? (
-      <div className="mt-3 text-xs text-slate-300 bg-slate-900/70 border border-slate-600/50 rounded-full px-4 py-1.5 font-semibold">
+      <div className="mt-3 text-[8px] sm:text-[9px] leading-relaxed text-slate-300 bg-slate-900/70 border border-slate-600/50 rounded-full px-4 py-1.5 font-semibold">
         {hud.bestCups > 0 && (
           <span role="img" aria-label={`${hud.bestCups} cups won`} className="mr-1.5">
             🏆{hud.bestCups > 1 ? `x${hud.bestCups}` : ""}
@@ -331,7 +333,7 @@ export default function MagicalKicks() {
     <div
       className="min-h-dvh w-full bg-slate-950 flex flex-col items-center justify-center p-1.5 sm:p-3 select-none"
       style={{
-        fontFamily: "'Cascadia Code', ui-monospace, monospace",
+        fontFamily: "'Press Start 2P', ui-monospace, monospace",
         // one tap = one action, never a double-tap zoom, on the rapid
         // HEIGHT/DIRECTION/SWERVE triple tap
         touchAction: "manipulation",
@@ -404,24 +406,24 @@ export default function MagicalKicks() {
                 style={{ animation: "popIn .35s ease-out both" }}
               >
                 {hud.msg.tone === "goal" && (
-                  <div className="text-center text-[10px] tracking-[0.4em] font-bold opacity-90 mb-1">
+                  <div className="text-center text-[8px] tracking-[0.25em] font-bold opacity-90 mb-1.5">
                     STAGE {hud.stage} · {hud.stageName} · CLEAR
                   </div>
                 )}
                 <div
-                  className="text-4xl sm:text-6xl text-center"
+                  className="text-2xl sm:text-4xl text-center"
                   style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
                 >
                   {hud.msg.title}
                 </div>
-                <div className="text-center text-sm sm:text-base font-semibold mt-1 opacity-90">{hud.msg.sub}</div>
+                <div className="text-center text-[10px] sm:text-xs leading-relaxed font-semibold mt-2 opacity-90">{hud.msg.sub}</div>
                 {hud.msg.tone === "miss" && hud.triesLeft > 0 && (
-                  <div className="text-center text-[10px] tracking-[0.4em] font-bold opacity-90 mt-1.5">
+                  <div className="text-center text-[8px] tracking-[0.25em] font-bold opacity-90 mt-2">
                     {hud.triesLeft} {hud.triesLeft === 1 ? "TRY" : "TRIES"} LEFT
                   </div>
                 )}
               </div>
-              <div className="mt-4 text-slate-200/80 text-xs font-semibold tracking-widest bg-slate-950/60 rounded-full px-4 py-1.5">
+              <div className="mt-4 text-slate-200/80 text-[8px] sm:text-[9px] font-semibold tracking-widest bg-slate-950/60 rounded-full px-4 py-1.5">
                 {resultPrompt}
               </div>
             </div>
@@ -432,13 +434,13 @@ export default function MagicalKicks() {
               wrapper, so tapping anywhere starts the game. */}
           {hud.phase === "menu" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
-              <h1 className="text-4xl sm:text-6xl text-white leading-none" style={DISPLAY_FONT}>
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
+              <h1 className="text-2xl sm:text-4xl text-white leading-snug" style={DISPLAY_FONT}>
                 FREE KICK
                 <br />
                 <span className="text-blue-400">LEGEND</span>
               </h1>
-              <p className="mt-4 max-w-md text-slate-300 text-sm sm:text-base">
+              <p className="mt-4 max-w-md text-slate-300 text-[9px] sm:text-[11px] leading-relaxed">
                 A cup marathon of <b className="text-amber-300">{TOTAL_STAGES} stages</b>, {TRIES_PER_STAGE} tries
                 each: score to advance, miss them all and the run is over. Every{" "}
                 <b className="text-amber-300">{CUP_EVERY}th stage</b> crowns a cup - claim all {LAPS} to become a
@@ -448,12 +450,12 @@ export default function MagicalKicks() {
               </p>
               {bestLine}
               <div
-                className="mt-6 anim bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30"
+                className="mt-6 anim bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-xs sm:text-sm shadow-lg shadow-blue-500/30"
                 style={{ animation: "floaty 2.4s ease-in-out infinite" }}
               >
                 TAP ⚽ TO KICK OFF
               </div>
-              <div className="mt-3 text-[11px] text-slate-500">
+              <div className="mt-3 text-[8px] leading-relaxed text-slate-500">
                 Space or Enter works too · a cup every {CUP_EVERY} stages, {LAPS} cups to win it all
               </div>
             </div>
@@ -462,11 +464,11 @@ export default function MagicalKicks() {
           {/* game over - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "gameover" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">CUP RUN OVER</div>
-              <div className="text-5xl sm:text-6xl text-white" style={DISPLAY_FONT}>
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">CUP RUN OVER</div>
+              <div className="text-3xl sm:text-4xl text-white" style={DISPLAY_FONT}>
                 {hud.score}
               </div>
-              <div className="text-slate-300 text-sm mt-1 font-semibold">
+              <div className="text-slate-300 text-[9px] sm:text-[10px] leading-relaxed mt-2 font-semibold">
                 Knocked out on stage {hud.stage}/{TOTAL_STAGES}
                 {hud.cups > 0 && (
                   <span className="ml-2 text-amber-300">
@@ -475,7 +477,7 @@ export default function MagicalKicks() {
                 )}
               </div>
               {bestLine}
-              <div className="mt-2 text-sm text-blue-200 font-semibold">
+              <div className="mt-2 text-[9px] sm:text-[10px] leading-relaxed text-blue-200 font-semibold">
                 {hud.stage > 40
                   ? "One cup from immortality."
                   : hud.stage > 20
@@ -486,7 +488,7 @@ export default function MagicalKicks() {
                   ? "A solid first lap."
                   : "The wall sends its regards."}
               </div>
-              <div className="mt-6 bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30">
+              <div className="mt-6 bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-xs sm:text-sm shadow-lg shadow-blue-500/30">
                 TAP ⚽ TO PLAY AGAIN
               </div>
             </div>
@@ -496,7 +498,7 @@ export default function MagicalKicks() {
               run continues, so this hands over to the next stage */}
           {hud.phase === "cup" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">
                 STAGE {hud.stage} · {hud.stageName} · CLEARED
               </div>
               <div
@@ -509,18 +511,18 @@ export default function MagicalKicks() {
                 🏆
               </div>
               <h2
-                className="mt-3 text-4xl sm:text-5xl text-amber-300 leading-none"
+                className="mt-3 text-2xl sm:text-3xl text-amber-300 leading-snug"
                 style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 CUP SECURED
               </h2>
-              <div className="mt-3 text-slate-300 text-sm font-semibold">
+              <div className="mt-3 text-slate-300 text-[9px] sm:text-[10px] leading-relaxed font-semibold">
                 Cup <span className="text-amber-300 font-bold">{hud.cups}</span> of {LAPS} · score{" "}
-                <span className="text-white text-lg font-bold align-middle" style={DISPLAY_FONT}>
+                <span className="text-white text-sm font-bold align-middle" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
-              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
+              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-[10px] sm:text-xs shadow-lg shadow-amber-500/40">
                 TAP ⚽ FOR STAGE {hud.stage + 1} · {nextStageName}
               </div>
             </div>
@@ -529,7 +531,7 @@ export default function MagicalKicks() {
           {/* all cups won - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "won" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
               <div
                 className="text-5xl sm:text-6xl anim tracking-tight"
                 style={{
@@ -542,19 +544,19 @@ export default function MagicalKicks() {
                 {"🏆".repeat(LAPS)}
               </div>
               <h2
-                className="mt-3 text-4xl sm:text-6xl text-amber-300 leading-none"
+                className="mt-3 text-lg sm:text-3xl text-amber-300 leading-snug"
                 style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 FREE KICK LEGEND
               </h2>
-              <div className="mt-3 text-slate-300 text-sm font-semibold">
+              <div className="mt-3 text-slate-300 text-[9px] sm:text-[10px] leading-relaxed font-semibold">
                 All {LAPS} cups claimed · final score{" "}
-                <span className="text-white text-2xl font-bold align-middle ml-1" style={DISPLAY_FONT}>
+                <span className="text-white text-lg font-bold align-middle ml-1" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
               {bestLine}
-              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
+              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-xs sm:text-sm shadow-lg shadow-amber-500/40">
                 TAP ⚽ TO PLAY AGAIN
               </div>
             </div>
@@ -688,7 +690,7 @@ export default function MagicalKicks() {
             <div key={key} className="flex flex-col items-center">
               <div
                 ref={(el) => (gaugeLabelRefs.current[key] = el)}
-                className="text-[10px] sm:text-xs font-bold tracking-wide mb-2 text-slate-400"
+                className="text-[8px] sm:text-[9px] font-bold tracking-wide mb-2 text-slate-400"
               >
                 {label}
               </div>
@@ -723,7 +725,7 @@ export default function MagicalKicks() {
                   style={{ left: "0%", opacity: 0 }}
                 />
               </div>
-              <div className="w-full flex justify-between mt-1 text-[9px] sm:text-[10px] font-semibold text-slate-500">
+              <div className="w-full flex justify-between mt-1 text-[7px] sm:text-[8px] font-semibold text-slate-500">
                 <span>{key === "h" ? "LOW" : key === "s" ? "↷ LEFT" : "LEFT"}</span>
                 <span>{key === "h" ? "HIGH" : key === "s" ? "RIGHT ↶" : "RIGHT"}</span>
               </div>
@@ -732,7 +734,7 @@ export default function MagicalKicks() {
           </div>
         </div>
 
-        <div className="mt-2 hidden sm:block text-center text-[11px] text-slate-500">
+        <div className="mt-2 hidden sm:block text-center text-[8px] text-slate-500">
           Prototype of the three-click free kick mechanic · React + Canvas · tuned for touch and mouse
         </div>
       </div>

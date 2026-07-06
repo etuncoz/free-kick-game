@@ -29,19 +29,24 @@ Use headless Chrome over raw CDP against `npm run dev`, drive game phases throug
 Module-level checks run through vitest (`npx vitest run`).
 
 ## Phase 1: Pixel font foundation
-Status: Not started
+Status: Complete
 
-- [ ] Replace the Cascadia Code Google Fonts `<link>` in `index.html` with Press Start 2P (weight 400 only; the face has no other weights).
-- [ ] Switch `DISPLAY_FONT` and the root container `fontFamily` in `MagicalKicks.jsx` to `'Press Start 2P', monospace`, dropping `fontWeight: 700` (the face is single-weight; bold synthesizes badly).
-- [ ] Switch the two canvas `ctx.font` strings in `render.js` (jersey numbers at ~line 125, ad boards at ~line 306) to `'Press Start 2P'`.
-- [ ] Retune font sizes across the HUD and overlays so the wide face fits: stat values, gauge labels, menu title, result title, prompts. Target no overflow at 360px CSS width.
+- [x] Replace the Cascadia Code Google Fonts `<link>` in `index.html` with Press Start 2P (weight 400 only; the face has no other weights).
+- [x] Switch `DISPLAY_FONT` and the root container `fontFamily` in `MagicalKicks.jsx` to `'Press Start 2P', monospace`, dropping `fontWeight: 700` (the face is single-weight; bold synthesizes badly).
+- [x] Switch the two canvas `ctx.font` strings in `render.js` (jersey numbers at ~line 125, ad boards at ~line 306) to `'Press Start 2P'`.
+- [x] Retune font sizes across the HUD and overlays so the wide face fits: stat values, gauge labels, menu title, result title, prompts. Target no overflow at 360px CSS width.
 
 ### Verification Plan
 - `npx vitest run` passes (no rendering tests exist; this guards against accidental logic edits).
 - Start `npm run dev`, screenshot via headless Chrome CDP at 1280x800 and 390x844 on the menu and (via `__game`) an aim phase; confirm the pixel font renders (not a fallback) and nothing overflows or wraps out of its card.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-06.
+Press Start 2P loaded from Google Fonts, applied to the root container, `DISPLAY_FONT`, and both canvas `ctx.font` uses (jersey numbers dropped their `bold` prefix, ad boards use `boardH * 0.45` since the face runs wide).
+Added `font-synthesis: none` in `src/index.css` so the leftover `font-bold` / `font-semibold` utilities never synthesize a fake bold over the single-weight pixel face.
+All text sizes came down 1-2 Tailwind steps with `leading-relaxed`/`leading-snug` on multi-line runs; the widest string (win screen "FREE KICK LEGEND") sits at `text-lg sm:text-3xl`.
+Verified: vitest 58/58 green; Playwright screenshots (harness `shoot.mjs` in the session scratchpad, dev server on port 5175, pattern from HANDOVER.md §Playwright) at 1280x800 and 390x844 across menu/aim1/aim2 show the pixel font rendering with no overflow; phone stats wrap into two rows as designed.
+Note: Playwright is installed in the session scratchpad, not the repo; `npx playwright install chromium` browsers are cached machine-wide.
 
 ## Phase 2: Canvas scene flat restyle
 Status: Not started

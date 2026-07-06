@@ -122,7 +122,7 @@ function drawPlayer(ctx, feet, s, o) {
   // minimum font legible
   if (o.number != null && s > 10) {
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = `bold ${Math.max(6, Math.round(h * 0.16))}px 'Cascadia Code', monospace`;
+    ctx.font = `${Math.max(6, Math.round(h * 0.16))}px 'Press Start 2P', monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(String(o.number), 0, -h * 0.71);
@@ -303,7 +303,7 @@ export function drawScene(ctx, g) {
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `bold ${Math.round(boardH * 0.5)}px 'Cascadia Code', monospace`;
+  ctx.font = `${Math.round(boardH * 0.45)}px 'Press Start 2P', monospace`;
   const panelW = W / ads.length;
   for (let i = 0; i < ads.length; i++) {
     ctx.fillStyle = i % 2 ? "#0e1c42" : "#0a1533";
