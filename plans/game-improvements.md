@@ -96,19 +96,22 @@ Wind scaling landed in stageSpec exactly as planned: cap = base * (1 + 0.25 * la
 Tests: 40-roll cap sweep across all 50 stages, 200-roll floor sweep on stage 45 (SIDE ROAD V, floor 0.6), exact-cap and calm-stage assertions, authored-floor preservation (SWIRLING GALE II 0.75). 48 tests pass. Commit eee45c9.
 
 ## Phase 6: Stage characteristics (task 7)
-Status: Not started
+Status: Complete (visual FORTRESS check deferred to Phase 8)
 
-- [ ] New mods in physics.js: `wallScale` (player size + collision top + per-man width), `kpReach` (reach multiplier), `kpBias` (metres toward the near post, negative = far post), `gaugeSpeed`, `windSwirl` (rad/s wind rotation during flight), `wallJitter`
-- [ ] render.js draws wall players scaled by `wallScale`
-- [ ] Stage personalities: OPENER (wall 3, kpSigma 1.2), OFF CENTRE (kpBias -1.2), THE CAT (kpSigma 0.45, kpReach 1.15, wall 3), GREAT WALL (wall 6, no jump, wallScale 1.35), SIDE ROAD (wall 5, wallJitter 0), SWIRLING GALE (windMinFrac 0.85, windSwirl 1.5), TIGHT ANGLE (kpBias 1.8), LONG RANGE (gaugeSpeed 1.35, wall 3), FORTRESS (wall 5, wallScale 2.0, no jump, kpSigma 0.7), THE FINAL (wall 5, wallScale 1.2, jump always, windMinFrac 0.5, kpSigma 0.8)
-- [ ] Tests per personality (wall size/scale pinning, keeper bias positions, swirl rotates wind, gauge speed override)
-- [ ] Commit
+- [x] New mods in physics.js: `wallScale` (player size + collision top + per-man width), `kpReach` (reach multiplier), `kpBias` (metres toward the near post, negative = far post), `gaugeSpeed`, `windSwirl` (rad/s wind rotation during flight), `wallJitter`
+- [x] render.js draws wall players scaled by `wallScale`
+- [x] Stage personalities: OPENER (wall 3, kpSigma 1.2), OFF CENTRE (kpBias -1.2), THE CAT (kpSigma 0.45, kpReach 1.15, wall 3), GREAT WALL (wall 6, no jump, wallScale 1.35), SIDE ROAD (wall 5, wallJitter 0), SWIRLING GALE (windMinFrac 0.85, windSwirl 1.5), TIGHT ANGLE (kpBias 1.8), LONG RANGE (gaugeSpeed 1.35, wall 3), FORTRESS (wall 5, wallScale 2.0, no jump, kpSigma 0.7), THE FINAL (wall 5, wallScale 1.2, jump always, windMinFrac 0.5, kpSigma 0.8)
+- [x] Tests per personality (wall size/scale pinning, keeper bias positions, swirl rotates wind, gauge speed override)
+- [x] Commit
 
 ### Verification Plan
 - `npm test` passes; visual spot-check of the FORTRESS double-size wall in the browser
 
 ### Phase Summary
-_(write when phase completes)_
+All six mods implemented in physics.js newScenario/launch/step; render.js scales the drawn wall (and divides the jump lift back out so the drawn jump equals the physics jump).
+kpBias semantics: metres toward the NEAR post (the post closer to the kicker, direction -sign(gx)); the start clamp (0.48 * GOAL_HALF ~ 1.76m) still applies, so TIGHT ANGLE's 1.8 pins him at his limit.
+windSwirl rotates the wind acceleration vector per substep (direction of rotation is arbitrary; the test asserts |rotation| = swirl * t and magnitude preservation).
+Ten personality tests added, including a FORTRESS collision test (a 2.5m crosser clears stage 1's wall but is WALLed by the 3.72m fortress) and a 30-roll SIDE ROAD jitter-free placement check. 58 tests pass. Commit 33176b9.
 
 ## Phase 7: Visual polish, all five items (task 6)
 Status: Not started

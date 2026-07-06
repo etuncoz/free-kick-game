@@ -61,14 +61,34 @@ function drawPlayer(ctx, feet, s, o) {
   if (o.angle) ctx.rotate(o.angle);
   const h = 1.84 * s;
   const w = 0.52 * s;
+  const legW = w * 0.24;
+  const legH = h * 0.42;
   // legs
   ctx.fillStyle = o.skin || "#c98d5e";
-  ctx.fillRect(-w * 0.32, -h * 0.42, w * 0.24, h * 0.42);
-  ctx.fillRect(w * 0.08, -h * 0.42, w * 0.24, h * 0.42);
-  // socks
-  ctx.fillStyle = o.sock || o.shorts || "#111";
-  ctx.fillRect(-w * 0.34, -h * 0.2, w * 0.28, h * 0.2);
-  ctx.fillRect(w * 0.06, -h * 0.2, w * 0.28, h * 0.2);
+  if (o.kickSwing) {
+    // the standing leg is planted; the kicking leg pivots at the hip -
+    // wound back through most of the run-up, whipped through at the end
+    ctx.fillRect(-w * 0.32, -legH, legW, legH);
+    ctx.fillStyle = o.sock || o.shorts || "#111";
+    ctx.fillRect(-w * 0.34, -h * 0.2, w * 0.28, h * 0.2);
+    const sw = o.kickSwing;
+    const ang = sw < 0.75 ? (sw / 0.75) * 0.9 : 0.9 - ((sw - 0.75) / 0.25) * 1.6;
+    ctx.save();
+    ctx.translate(w * 0.2, -legH);
+    ctx.rotate(ang);
+    ctx.fillStyle = o.skin || "#c98d5e";
+    ctx.fillRect(-legW / 2, 0, legW, legH * 0.82);
+    ctx.fillStyle = o.sock || "#111";
+    ctx.fillRect(-legW / 2 - w * 0.02, legH * 0.55, legW + w * 0.04, legH * 0.38);
+    ctx.restore();
+  } else {
+    ctx.fillRect(-w * 0.32, -legH, legW, legH);
+    ctx.fillRect(w * 0.08, -legH, legW, legH);
+    // socks
+    ctx.fillStyle = o.sock || o.shorts || "#111";
+    ctx.fillRect(-w * 0.34, -h * 0.2, w * 0.28, h * 0.2);
+    ctx.fillRect(w * 0.06, -h * 0.2, w * 0.28, h * 0.2);
+  }
   // shorts
   ctx.fillStyle = o.shorts || "#fff";
   ctx.fillRect(-w * 0.42, -h * 0.55, w * 0.84, h * 0.16);
@@ -79,12 +99,30 @@ function drawPlayer(ctx, feet, s, o) {
   if (o.armsUp) {
     ctx.fillRect(-w * 0.68, -h * 1.06, w * 0.2, h * 0.5);
     ctx.fillRect(w * 0.48, -h * 1.06, w * 0.2, h * 0.5);
+    if (o.gloves) {
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(-w * 0.7, -h * 1.14, w * 0.24, h * 0.09);
+      ctx.fillRect(w * 0.46, -h * 1.14, w * 0.24, h * 0.09);
+    }
   } else if (o.armsWide) {
     ctx.fillRect(-w * 1.0, -h * 0.86, w * 0.55, h * 0.16);
     ctx.fillRect(w * 0.45, -h * 0.86, w * 0.55, h * 0.16);
+    if (o.gloves) {
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(-w * 1.12, -h * 0.87, w * 0.14, h * 0.18);
+      ctx.fillRect(w * 0.98, -h * 0.87, w * 0.14, h * 0.18);
+    }
   } else {
     // crossed over chest (wall pose)
     ctx.fillRect(-w * 0.6, -h * 0.8, w * 1.2, h * 0.14);
+  }
+  // jersey number, once the figure is big enough on screen to carry it
+  if (o.number != null && s > 24) {
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = `bold ${Math.max(6, Math.round(h * 0.16))}px 'Archivo Black', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(o.number), 0, -h * 0.71);
   }
   // head
   ctx.fillStyle = o.skin || "#c98d5e";
@@ -103,6 +141,7 @@ function drawPlayer(ctx, feet, s, o) {
 export function drawScene(ctx, g) {
   const P = (wx, wy, wz) => project(g, wx, wy, wz);
   const W = g.W, H = g.H;
+  const t = performance.now() / 1000; // ambient animation clock
   // sky
   const sky = ctx.createLinearGradient(0, 0, 0, g.horizon);
   sky.addColorStop(0, "#0a1030");
@@ -185,10 +224,39 @@ export function drawScene(ctx, g) {
     line(P(g.gx - 20.15, 0, bz), P(g.gx - 20.15, 0, g.D));
     line(P(g.gx + 20.15, 0, bz), P(g.gx + 20.15, 0, g.D));
   }
+  // penalty arc - the "D" on the edge of the box, the part of the 9.15m
+  // circle around the penalty spot that lies outside the box
+  if (bz > 1) {
+    const spotZ = g.D - 11;
+    const aMax = Math.acos(5.5 / 9.15);
+    ctx.beginPath();
+    for (let i = 0; i <= 24; i++) {
+      const a = -aMax + (2 * aMax * i) / 24;
+      const pt = P(g.gx + Math.sin(a) * 9.15, 0, spotZ - Math.cos(a) * 9.15);
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.stroke();
+  }
   const sz = g.D - 5.5;
   line(P(g.gx - 9.16, 0, sz), P(g.gx + 9.16, 0, sz));
   line(P(g.gx - 9.16, 0, sz), P(g.gx - 9.16, 0, g.D));
   line(P(g.gx + 9.16, 0, sz), P(g.gx + 9.16, 0, g.D));
+
+  // worn dirt around the kick spot - dead-ball specialists ruin the turf
+  const spot = P(0, 0, 0);
+  ctx.save();
+  ctx.translate(spot.x, spot.y);
+  ctx.scale(1, 0.38);
+  const worn = ctx.createRadialGradient(0, 0, 0, 0, 0, 1.15 * spot.s);
+  worn.addColorStop(0, "rgba(116,82,45,0.45)");
+  worn.addColorStop(0.6, "rgba(116,82,45,0.2)");
+  worn.addColorStop(1, "rgba(116,82,45,0)");
+  ctx.fillStyle = worn;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1.15 * spot.s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 
   /* ---- stands + crowd: the audience wall starts right behind the goal,
      not up at the horizon - it covers the far pitch and out-of-bounds area
@@ -201,19 +269,62 @@ export function drawScene(ctx, g) {
   standBg.addColorStop(1, "#1d2a55");
   ctx.fillStyle = standBg;
   ctx.fillRect(0, standTop, W, standH);
+  const celebrating = g.result === "GOAL" && (g.phase === "settle" || g.phase === "result");
   for (const [cx, cy, cc] of g.crowd) {
     const y = standTop + cy * (standH - 4);
     const size = 1.8 + cy * 1.6; // nearer (lower) rows read slightly bigger
+    // the crowd sways gently, and bounces harder while celebrating a goal
+    const sway = Math.sin(t * (celebrating ? 5.2 : 1.7) + cx * 31 + cy * 17) * (celebrating ? 2.2 : 1.1);
     ctx.fillStyle = cc < 0.15 ? "#facc15" : cc < 0.3 ? "#60a5fa" : cc < 0.42 ? "#f87171" : "#2b3a6b";
-    ctx.fillRect(cx * W, y, size, size);
+    ctx.fillRect(cx * W + sway, y, size, size);
   }
   // tier walkways so the wall reads as stands, not a starfield
   ctx.fillStyle = "rgba(4,8,24,0.5)";
   const tiers = 5;
   for (let i = 1; i < tiers; i++) ctx.fillRect(0, standTop + (standH * i) / tiers, W, 2.5);
-  // shadowed foot of the stand wall
-  ctx.fillStyle = "rgba(6,10,26,0.55)";
-  ctx.fillRect(0, standBottom - 8, W, 8);
+  // camera flashes pepper the stands while a goal is being celebrated
+  if (celebrating) {
+    for (let i = 0; i < 10; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.4 + Math.random() * 0.6})`;
+      const fs = 1.5 + Math.random() * 2.5;
+      ctx.fillRect(Math.random() * W, standTop + Math.random() * (standH - 6), fs, fs);
+    }
+  }
+  // advertising boards along the foot of the stands
+  const boardH = Math.max(10, Math.min(16, standH * 0.1));
+  const boardY = standBottom - boardH;
+  const ads = ["FREE KICK LEGEND", "TOP BINS ONLY", "CUP RUN '26", "BEND IT LIKE YOU"];
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `bold ${Math.round(boardH * 0.5)}px 'Archivo Black', sans-serif`;
+  const panelW = W / ads.length;
+  for (let i = 0; i < ads.length; i++) {
+    ctx.fillStyle = i % 2 ? "#0e1c42" : "#0a1533";
+    ctx.fillRect(panelW * i, boardY, panelW, boardH);
+    ctx.fillStyle = i % 2 ? "#93c5fd" : "#fbbf24";
+    ctx.fillText(ads[i], panelW * i + panelW / 2, boardY + boardH / 2 + 0.5);
+  }
+  ctx.restore();
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.fillRect(0, boardY, W, 1);
+  // floodlight beams with a little night haze, angled in over the pitch
+  for (const fx of [0.08, 0.92]) {
+    const bx = W * fx;
+    const dir = fx < 0.5 ? 1 : -1;
+    const beamBottom = g.horizon + (H - g.horizon) * 0.4;
+    const haze = ctx.createLinearGradient(0, 6, 0, beamBottom);
+    haze.addColorStop(0, "rgba(255,250,220,0.14)");
+    haze.addColorStop(1, "rgba(255,250,220,0)");
+    ctx.fillStyle = haze;
+    ctx.beginPath();
+    ctx.moveTo(bx - 12, 6);
+    ctx.lineTo(bx + 12, 6);
+    ctx.lineTo(bx + dir * W * 0.4, beamBottom);
+    ctx.lineTo(bx + dir * W * 0.12, beamBottom);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   /* ---- goal + net ---- */
   const netZ = g.D + 1.7;
@@ -246,6 +357,8 @@ export function drawScene(ctx, g) {
   const ballInNet = scored && g.ball.z > g.D;
   const netDz = (wx, wy) => {
     let dz = ripple * 0.4 * Math.exp(-Math.abs(wx - g.netHitX));
+    // the loose mesh breathes with the crosswind, more the higher up it is
+    dz += g.windX * 0.09 * (0.3 + 0.7 * (wy / GOAL_H)) * Math.sin(t * 2.1 + wy * 2 + wx * 0.7);
     if (ballInNet) {
       const p = Math.min(1, (g.ball.z - g.D) / (netZ - g.D));
       const fx = Math.exp(-(((wx - g.ball.x) / 1.1) ** 2));
@@ -281,6 +394,14 @@ export function drawScene(ctx, g) {
   for (let y = 0.2; y <= GOAL_H; y += 0.55) {
     line(P(g.gx - GOAL_HALF, y, g.D), P(g.gx - GOAL_HALF, Math.max(0, y - 0.35), netZ));
     line(P(g.gx + GOAL_HALF, y, g.D), P(g.gx + GOAL_HALF, Math.max(0, y - 0.35), netZ));
+  }
+  // depth threads across the side netting give the pocket its 3D read
+  for (const side of [-1, 1]) {
+    const sx = g.gx + side * GOAL_HALF;
+    for (const f of [0.3, 0.6]) {
+      const zf = lerp(g.D, netZ, f);
+      line(P(sx, GOAL_H * (1 - f * 0.45), zf), P(sx, 0, zf));
+    }
   }
   // back-frame stanchions: top corners angle down to the net's ground line,
   // giving the goal its box shape
@@ -335,11 +456,21 @@ export function drawScene(ctx, g) {
   line(pr, prt);
   line(plt, prt);
   ctx.restore();
-  ctx.strokeStyle = "#f8fafc";
+  ctx.strokeStyle = "#e2e8f0";
   ctx.lineWidth = pw;
   line(pl, plt);
   line(pr, prt);
   line(plt, prt);
+  // a thin bright core off-centre reads as a specular highlight, turning
+  // the flat strokes into round aluminium posts
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = pw * 0.35;
+  ctx.save();
+  ctx.translate(-pw * 0.18, -pw * 0.18);
+  line(pl, plt);
+  line(pr, prt);
+  line(plt, prt);
+  ctx.restore();
   ctx.lineCap = "butt";
 
   /* ---- ghost marks: where the earlier tries of this stage ended ----
@@ -364,12 +495,17 @@ export function drawScene(ctx, g) {
 
   /* ---- keeper ---- */
   const kp = P(g.kpX, 0, g.D - 0.25);
+  const kpFlight = g.phase === "flight" || g.phase === "settle";
+  const kpDiving = Math.abs(g.kpAngle) > 0.15;
   drawPlayer(ctx, kp, kp.s, {
     jersey: "#facc15",
     shorts: "#111827",
     sock: "#111827",
-    armsUp: g.phase === "flight" || g.phase === "settle" ? g.kpPredY > 1.3 : false,
-    armsWide: !(g.phase === "flight" || g.phase === "settle"),
+    gloves: true,
+    number: 1,
+    // arms spread wide in a dive, straight up for a standing jump
+    armsUp: kpFlight && !kpDiving && g.kpPredY > 1.3,
+    armsWide: !kpFlight || kpDiving,
     angle: g.kpAngle,
     lift: g.kpLift,
   });
@@ -391,6 +527,7 @@ export function drawScene(ctx, g) {
         jersey: i % 2 ? "#b91c1c" : "#991b1b",
         shorts: "#f3f4f6",
         sock: "#b91c1c",
+        number: 2 + i,
         // drawPlayer scales lift by its size param; wallJh is in metres,
         // so undo the wall scale to keep the drawn jump = the physics jump
         lift: g.wallJh / scale,
@@ -400,21 +537,34 @@ export function drawScene(ctx, g) {
 
   const drawBall = () => {
     const b = g.ball;
-    // trail
+    // trail, tinted by the swerve so a banana reads as one at a glance
+    // (amber curling right, cyan curling left, plain white when straight)
+    const sw = g.locked?.s ?? 0;
+    const tint = sw > 0.15 ? "251,191,36" : sw < -0.15 ? "34,211,238" : "255,255,255";
     for (let i = 0; i < g.trail.length; i++) {
       const tr = g.trail[i];
       const a = i / g.trail.length;
-      ctx.fillStyle = `rgba(255,255,255,${0.05 + a * 0.14})`;
+      ctx.fillStyle = `rgba(${tint},${0.05 + a * 0.14})`;
       ctx.beginPath();
       ctx.arc(tr.x, tr.y, tr.r * (0.5 + a * 0.5), 0, Math.PI * 2);
       ctx.fill();
     }
-    // shadow
+    // soft contact shadow that fades as the ball climbs
     const sh = P(b.x, 0, b.z);
-    ctx.fillStyle = "rgba(0,0,0,0.32)";
+    const shR = 0.2 * sh.s;
+    const shA = Math.max(0.14, 0.38 - b.y * 0.03);
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    ctx.scale(1, 0.34);
+    const shGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, shR);
+    shGrad.addColorStop(0, `rgba(0,0,0,${shA})`);
+    shGrad.addColorStop(0.7, `rgba(0,0,0,${shA * 0.5})`);
+    shGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = shGrad;
     ctx.beginPath();
-    ctx.ellipse(sh.x, sh.y, 0.16 * sh.s, 0.055 * sh.s, 0, 0, Math.PI * 2);
+    ctx.arc(0, 0, shR, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
     const bp = P(b.x, b.y, b.z);
     const r = Math.max(2.2, BALL_R * bp.s);
     ctx.fillStyle = "#ffffff";
@@ -422,17 +572,35 @@ export function drawScene(ctx, g) {
     ctx.arc(bp.x, bp.y, r, 0, Math.PI * 2);
     ctx.fill();
     if (r > 4) {
-      ctx.strokeStyle = "rgba(20,25,40,0.65)";
+      // classic black pentagon panels, rolling with the ball's spin
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(bp.x, bp.y, r, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = "rgba(20,25,40,0.85)";
+      const pent = (px, py, pr, rot) => {
+        ctx.beginPath();
+        for (let v = 0; v < 5; v++) {
+          const va = rot + (v * Math.PI * 2) / 5;
+          const vx = px + Math.cos(va) * pr;
+          const vy = py + Math.sin(va) * pr;
+          if (v === 0) ctx.moveTo(vx, vy);
+          else ctx.lineTo(vx, vy);
+        }
+        ctx.closePath();
+        ctx.fill();
+      };
+      pent(bp.x, bp.y, r * 0.3, b.spin);
+      for (let k = 0; k < 3; k++) {
+        const a = b.spin * 0.9 + (k * Math.PI * 2) / 3;
+        pent(bp.x + Math.cos(a) * r * 0.82, bp.y + Math.sin(a) * r * 0.82, r * 0.3, a);
+      }
+      ctx.restore();
+      // rim shading keeps it a sphere, not a sticker
+      ctx.strokeStyle = "rgba(20,25,40,0.25)";
       ctx.lineWidth = Math.max(1, r * 0.12);
       ctx.beginPath();
-      ctx.arc(bp.x, bp.y, r * 0.55, b.spin, b.spin + 1.6);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(bp.x, bp.y, r * 0.55, b.spin + Math.PI, b.spin + Math.PI + 1.6);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(20,25,40,0.25)";
-      ctx.beginPath();
-      ctx.arc(bp.x, bp.y, r * 0.95, 0, Math.PI * 2);
+      ctx.arc(bp.x, bp.y, r * 0.94, 0, Math.PI * 2);
       ctx.stroke();
     }
     if (g.trail.length > 26) g.trail.shift();
@@ -461,6 +629,15 @@ export function drawScene(ctx, g) {
     jersey: "#1d4ed8",
     shorts: "#ffffff",
     sock: "#1d4ed8",
+    number: 10,
+    kickSwing: runP,
     angle: runP === 1 ? -0.28 : runP > 0 ? -0.12 : 0,
   });
+
+  // match-night vignette pulls the eye to the pitch centre
+  const vig = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.45, W / 2, H * 0.5, Math.max(W, H) * 0.8);
+  vig.addColorStop(0, "rgba(2,6,20,0)");
+  vig.addColorStop(1, "rgba(2,6,20,0.34)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
 }
