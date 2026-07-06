@@ -67,6 +67,8 @@ export function createGameState() {
     wallN: 4,
     stageWallN: 4,
     wallHalf: 1.1,
+    wallScale: 1,
+    windSwirl: 0,
     ball: { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 },
     trail: [],
     tryMarks: [], // where earlier tries of this stage ended (ghost X marks)
@@ -132,9 +134,11 @@ export function newScenario(g) {
   }
   const n = g.stageWallN;
   const nearPostAim = g.gx - Math.sign(g.gx || 1) * 1.7;
-  g.wallX = (nearPostAim * g.wallZ) / g.D + rnd(-0.3, 0.3);
+  const jitter = mods.wallJitter ?? 0.3;
+  g.wallX = (nearPostAim * g.wallZ) / g.D + rnd(-jitter, jitter);
   g.wallN = n;
-  g.wallHalf = (n * 0.56) / 2;
+  g.wallScale = mods.wallScale ?? 1;
+  g.wallHalf = (n * 0.56 * g.wallScale) / 2;
   g.wallWillJump = Math.random() < (mods.wallJumpChance ?? 0.8);
   g.wallJumpT = 0;
   g.wallJh = 0;
@@ -148,20 +152,27 @@ export function newScenario(g) {
   g.windZ = windMag * Math.cos(windAng);
   g.windAx = g.windX * 3.1;
   g.windAz = g.windZ * 3.1;
-  // keeper
-  g.kpX = g.gx + Math.sign(g.gx || (Math.random() < 0.5 ? 1 : -1)) * 0.45;
+  g.windSwirl = mods.windSwirl ?? 0;
+  // keeper: by default he shades slightly toward the far post; a kpBias
+  // stage pins him a set distance toward the near post (negative = far)
+  const nearDir = -Math.sign(g.gx || (Math.random() < 0.5 ? 1 : -1));
+  g.kpX =
+    mods.kpBias != null
+      ? g.gx + nearDir * mods.kpBias
+      : g.gx - nearDir * 0.45;
   g.kpX = clamp(g.kpX, g.gx - KP_START_CLAMP, g.gx + KP_START_CLAMP);
   g.kpStart = g.kpX;
   g.kpTarget = g.kpX;
   g.kpAngle = 0;
   g.kpLift = 0;
   g.kpSigma = mods.kpSigma ?? STAGE_KP_SIGMA;
+  g.kpReach = KP_REACH_X * (mods.kpReach ?? 1);
   // ball + gauges
   g.ball = { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 };
   g.trail = [];
   g.locked = { h: null, d: null, s: null };
   g.gaugeT = 0;
-  g.gaugeSpeed = STAGE_GAUGE_SPEED;
+  g.gaugeSpeed = mods.gaugeSpeed ?? STAGE_GAUGE_SPEED;
   g.t = 0;
   g.runT = 0;
   g.settleT = 0;
@@ -216,7 +227,7 @@ export function launch(g) {
     s * KP_CURL_MISREAD + // he buys the bow and misses the late break back
     gauss * g.kpSigma;
   const predY = Math.max(0.2, g.ball.vy * T - 4.905 * T * T);
-  const reachX = clamp(predX, g.gx - KP_REACH_X, g.gx + KP_REACH_X);
+  const reachX = clamp(predX, g.gx - (g.kpReach ?? KP_REACH_X), g.gx + (g.kpReach ?? KP_REACH_X));
   g.kpPredY = clamp(predY, 0.2, KP_PREDY_MAX);
   // decide the final pose now (the animation in step() just eases into it):
   // a long way to cover means a dive, flatter for low balls; short shuffles
@@ -334,6 +345,16 @@ export function step(g, dt) {
       const prevY = b.y;
       const prevZ = b.z;
       const inFlight = g.phase === "flight";
+      // a swirl stage's wind direction keeps turning while the ball is up
+      if (inFlight && g.windSwirl) {
+        const rot = g.windSwirl * h;
+        const cr = Math.cos(rot);
+        const sr = Math.sin(rot);
+        const ax0 = g.windAx;
+        const az0 = g.windAz;
+        g.windAx = ax0 * cr - az0 * sr;
+        g.windAz = ax0 * sr + az0 * cr;
+      }
       const ax = (inFlight ? g.curlAx || 0 : 0) + (inFlight ? g.windAx : 0);
       const az = inFlight ? g.windAz : 0; // head/tailwind
       b.vx += ax * h - 0.06 * b.vx * h;
@@ -361,7 +382,7 @@ export function step(g, dt) {
         const t = (g.wallZ - prevZ) / (b.z - prevZ);
         const ix = lerp(prevX, b.x, t);
         const iy = lerp(prevY, b.y, t);
-        const top = 1.86 + g.wallJh;
+        const top = 1.86 * (g.wallScale || 1) + g.wallJh;
         const under = g.wallJh > 0.22 && iy < g.wallJh * 0.85;
         if (Math.abs(ix - g.wallX) < g.wallHalf + BALL_R && iy < top && !under) {
           b.z = g.wallZ - 0.05;

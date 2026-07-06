@@ -376,19 +376,24 @@ export function drawScene(ctx, g) {
 
   /* ---- ball + wall, painter's order by depth ---- */
   const drawWall = () => {
+    // gimmick stages field bigger men: the drawn size tracks the same
+    // wallScale the collision check uses, so what blocks is what you see
+    const scale = g.wallScale || 1;
     for (let i = 0; i < g.wallN; i++) {
-      const wx = g.wallX - g.wallHalf + 0.28 + i * 0.56;
+      const wx = g.wallX - g.wallHalf + (0.28 + i * 0.56) * scale;
       const wp = P(wx, 0, g.wallZ);
       // shadow
       ctx.fillStyle = "rgba(0,0,0,0.3)";
       ctx.beginPath();
-      ctx.ellipse(wp.x, wp.y, 0.34 * wp.s, 0.1 * wp.s, 0, 0, Math.PI * 2);
+      ctx.ellipse(wp.x, wp.y, 0.34 * wp.s * scale, 0.1 * wp.s * scale, 0, 0, Math.PI * 2);
       ctx.fill();
-      drawPlayer(ctx, wp, wp.s, {
+      drawPlayer(ctx, wp, wp.s * scale, {
         jersey: i % 2 ? "#b91c1c" : "#991b1b",
         shorts: "#f3f4f6",
         sock: "#b91c1c",
-        lift: g.wallJh,
+        // drawPlayer scales lift by its size param; wallJh is in metres,
+        // so undo the wall scale to keep the drawn jump = the physics jump
+        lift: g.wallJh / scale,
       });
     }
   };

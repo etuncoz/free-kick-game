@@ -15,6 +15,7 @@ import {
 } from "./constants";
 import {
   KP_CURL_MISREAD,
+  KP_REACH_X,
   advanceOutcome,
   createGameState,
   launch,
@@ -97,7 +98,7 @@ describe("newScenario (stage mode)", () => {
       g.stage = stage;
       newScenario(g);
       expect(g.kpSigma).toBe(STAGES[stage - 1].mods?.kpSigma ?? STAGE_KP_SIGMA);
-      expect(g.gaugeSpeed).toBe(STAGE_GAUGE_SPEED);
+      expect(g.gaugeSpeed).toBe(STAGES[stage - 1].mods?.gaugeSpeed ?? STAGE_GAUGE_SPEED);
     }
   });
 
@@ -147,8 +148,10 @@ describe("the 50-stage marathon (stageSpec)", () => {
   });
 
   it("the keeper sharpens a little every lap", () => {
-    const lap0 = stageSpec(1).mods.kpSigma;
-    const lap4 = stageSpec(41).mods.kpSigma;
+    // stage 5 (THE SIDE ROAD) has no authored kpSigma, so it shows the
+    // run default sharpening cleanly
+    const lap0 = stageSpec(5).mods.kpSigma;
+    const lap4 = stageSpec(45).mods.kpSigma;
     expect(lap0).toBe(STAGE_KP_SIGMA);
     expect(lap4).toBeCloseTo(STAGE_KP_SIGMA * (1 - 0.24), 9);
   });
@@ -171,8 +174,8 @@ describe("the 50-stage marathon (stageSpec)", () => {
       newScenario(g);
       expect(Math.hypot(g.windX, g.windZ)).toBeGreaterThanOrEqual(0.6 * capUnits - 1e-9);
     }
-    // an authored floor above the lap floor is kept (SWIRLING GALE II: 0.75)
-    expect(stageSpec(16).mods.windMinFrac).toBeCloseTo(0.75, 9);
+    // an authored floor above the lap floor is kept (SWIRLING GALE II: 0.85)
+    expect(stageSpec(16).mods.windMinFrac).toBeCloseTo(0.85, 9);
   });
 
   it("newScenario builds a sane scenario for every one of the 50 stages", () => {
@@ -366,9 +369,101 @@ describe("stage personalities", () => {
   });
 
   it("keeper-sigma mods override the run constant; others keep it", () => {
-    expect(scenarioFor(3).g.kpSigma).toBe(0.55); // THE CAT
+    expect(scenarioFor(3).g.kpSigma).toBe(0.45); // THE CAT
     expect(scenarioFor(9).g.kpSigma).toBe(0.7); // THE FORTRESS
-    expect(scenarioFor(1).g.kpSigma).toBe(STAGE_KP_SIGMA);
+    expect(scenarioFor(5).g.kpSigma).toBe(STAGE_KP_SIGMA); // no kpSigma mod
+  });
+
+  it("THE OPENER greets you with a small wall and a drowsy keeper", () => {
+    const { g } = scenarioFor(1);
+    expect(g.wallN).toBe(3);
+    expect(g.kpSigma).toBe(1.2);
+  });
+
+  it("OFF CENTRE's keeper cheats toward the far post, near post open", () => {
+    const { g } = scenarioFor(2); // gx +3.5, so the near post is the -x side
+    expect(g.kpStart - g.gx).toBeCloseTo(1.2, 9);
+  });
+
+  it("THE CAT is sharper, reaches further, and brings only a token wall", () => {
+    const { g } = scenarioFor(3);
+    expect(g.kpReach).toBeCloseTo(KP_REACH_X * 1.15, 9);
+    expect(g.wallN).toBe(3);
+  });
+
+  it("THE SIDE ROAD parks its wall dead on the near-post line", () => {
+    for (let roll = 0; roll < 30; roll++) {
+      const { g } = scenarioFor(5);
+      const nearPostAim = g.gx - Math.sign(g.gx) * 1.7;
+      expect(g.wallX).toBeCloseTo((nearPostAim * g.wallZ) / g.D, 9);
+      expect(g.wallN).toBe(5);
+    }
+  });
+
+  it("SWIRLING GALE's wind turns while the ball is in the air", () => {
+    const g = createGameState();
+    g.stage = 6;
+    newScenario(g);
+    expect(g.windSwirl).toBe(1.5);
+    g.phase = "flight";
+    g.flightT = 0;
+    g.kpDelay = 99;
+    g.curlAx = 0;
+    g.windAx = 3.1;
+    g.windAz = 0;
+    g.ball = { x: 0, y: 1, z: 0.1, vx: 0, vy: 0, vz: 0.01, spin: 0 }; // hangs
+    const magBefore = Math.hypot(g.windAx, g.windAz);
+    for (let i = 0; i < 60; i++) step(g, 1 / 60); // one second aloft
+    const turned = Math.atan2(g.windAx, g.windAz);
+    expect(Math.abs(turned - Math.PI / 2)).toBeCloseTo(1.5, 5); // 1.5 rad/s x 1 s
+    expect(Math.hypot(g.windAx, g.windAz)).toBeCloseTo(magBefore, 5);
+  });
+
+  it("TIGHT ANGLE's keeper hugs the near post", () => {
+    const { g } = scenarioFor(7); // gx -8.5, so the near post is the +x side
+    expect(g.kpStart - g.gx).toBeGreaterThan(1.5); // 1.8, clamped to his limit
+  });
+
+  it("LONG RANGE races the gauge behind a token wall", () => {
+    const { g } = scenarioFor(8);
+    expect(g.gaugeSpeed).toBe(1.35);
+    expect(g.wallN).toBe(3);
+  });
+
+  it("THE FORTRESS fields a double-size wall that never jumps", () => {
+    const { g } = scenarioFor(9);
+    expect(g.wallN).toBe(5);
+    expect(g.wallScale).toBe(2);
+    expect(g.wallWillJump).toBe(false);
+    expect(g.wallHalf).toBeCloseTo((5 * 0.56 * 2) / 2, 9);
+  });
+
+  it("a ball that clears a normal wall is stopped by the FORTRESS wall", () => {
+    // crosses the wall plane at 2.5m: over a 1.86m wall, into a 3.72m one
+    const cross = (stage) => {
+      const g = createGameState();
+      g.stage = stage;
+      newScenario(g);
+      g.phase = "flight";
+      g.flightT = 0;
+      g.curlAx = 0;
+      g.windAx = 0;
+      g.windAz = 0;
+      g.windSwirl = 0;
+      g.kpDelay = 99;
+      g.wallWillJump = false;
+      g.ball = { x: g.wallX, y: 2.5, z: g.wallZ - 0.3, vx: 0, vy: 0, vz: 25, spin: 0 };
+      step(g, 0.033);
+      return g.result;
+    };
+    expect(cross(9)).toBe("WALL");
+    expect(cross(1)).toBe(null); // sails clean over, still in flight
+  });
+
+  it("THE FINAL's wall always jumps", () => {
+    for (let roll = 0; roll < 30; roll++) {
+      expect(scenarioFor(10).g.wallWillJump).toBe(true);
+    }
   });
 
   it("SWIRLING GALE always blows at least 75% of its cap", () => {

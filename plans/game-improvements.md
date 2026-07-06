@@ -81,18 +81,19 @@ Tests: new stageSpec + advanceOutcome suites in physics.test.js, new storage.tes
 The dev-console cup/win sim is deferred to Phase 8 with the rest of the browser checks (extension offline).
 
 ## Phase 5: Wind scaling to 20 km/h (task 4)
-Status: Not started
+Status: Complete
 
-- [ ] In `stageSpec`: wind cap scales `base * (1 + 0.25 * lap)` so THE FINAL V hits exactly 20 km/h; windless archetypes (THE OPENER) stay windless on every lap
-- [ ] Lower random bound rises with lap: effective `windMinFrac = max(stage mod, 0.15 * lap)` capped at 0.6
-- [ ] Tests: cap never exceeded across all 50 stages, stage 50 cap is exactly 20, min-fraction floor honoured on late laps
-- [ ] Commit
+- [x] In `stageSpec`: wind cap scales `base * (1 + 0.25 * lap)` so THE FINAL V hits exactly 20 km/h; windless archetypes (THE OPENER) stay windless on every lap
+- [x] Lower random bound rises with lap: effective `windMinFrac = max(stage mod, 0.15 * lap)` capped at 0.6 (the cap only limits the lap floor; an authored mod above it is kept, e.g. SWIRLING GALE 0.75)
+- [x] Tests: cap never exceeded across all 50 stages, stage 50 cap is exactly 20, min-fraction floor honoured on late laps
+- [x] Commit
 
 ### Verification Plan
 - `npm test` passes; a multi-hundred-roll sweep over stages 41-50 never rolls below the floor or above the cap
 
 ### Phase Summary
-_(write when phase completes)_
+Wind scaling landed in stageSpec exactly as planned: cap = base * (1 + 0.25 * lap) (stage 50 = 20 km/h, OPENER stays 0 on all laps), floor = max(authored windMinFrac, min(0.6, 0.15 * lap)).
+Tests: 40-roll cap sweep across all 50 stages, 200-roll floor sweep on stage 45 (SIDE ROAD V, floor 0.6), exact-cap and calm-stage assertions, authored-floor preservation (SWIRLING GALE II 0.75). 48 tests pass. Commit eee45c9.
 
 ## Phase 6: Stage characteristics (task 7)
 Status: Not started

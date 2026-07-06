@@ -13,22 +13,40 @@ export const PENALTY_BOX_DEPTH = 16.5; // metres, box edge from the goal line
 // speed stay constant (see STAGE_KP_SIGMA / STAGE_GAUGE_SPEED).
 // Optional per-stage `mods` give stages a personality beyond distance/angle:
 //   wallN          - fixed wall size (skips the per-stage 3-5 roll)
+//   wallScale      - wall player size multiplier (height, width and reach)
 //   wallJumpChance - overrides the default 0.8 jump probability
+//   wallJitter     - wall placement jitter amplitude in metres (default 0.3;
+//                    0 parks the wall dead on the near-post line)
 //   kpSigma        - overrides STAGE_KP_SIGMA (lower = sharper keeper)
+//   kpReach        - keeper dive reach multiplier
+//   kpBias         - keeper's starting spot, metres toward the NEAR post
+//                    (negative = cheats toward the far post)
+//   gaugeSpeed     - overrides STAGE_GAUGE_SPEED for this stage
 //   windMinFrac    - wind always rolls at least this fraction of the cap
+//   windSwirl      - rad/s the wind direction rotates mid-flight
 // These ten are the authored ARCHETYPES; the full 50-stage run revisits
-// them lap after lap via stageSpec() below.
+// them lap after lap via stageSpec() below. Each has one clear identity:
 export const STAGES = [
-  { d: 19.0, gx: 0.0, maxWindKmh: 0, name: "THE OPENER" },
-  { d: 20.0, gx: 3.5, maxWindKmh: 2, name: "OFF CENTRE" },
-  { d: 21.0, gx: -4.5, maxWindKmh: 3, name: "THE CAT", mods: { kpSigma: 0.55 } },
-  { d: 22.0, gx: 6.0, maxWindKmh: 4, name: "THE GREAT WALL", mods: { wallN: 6, wallJumpChance: 0 } },
-  { d: 23.0, gx: -7.0, maxWindKmh: 5, name: "THE SIDE ROAD" },
-  { d: 24.0, gx: 5.0, maxWindKmh: 6, name: "SWIRLING GALE", mods: { windMinFrac: 0.75 } },
-  { d: 25.5, gx: -8.5, maxWindKmh: 7, name: "TIGHT ANGLE" },
-  { d: 27.0, gx: 9.0, maxWindKmh: 8, name: "LONG RANGE" },
-  { d: 28.5, gx: -10.0, maxWindKmh: 9, name: "THE FORTRESS", mods: { wallN: 5, kpSigma: 0.7 } },
-  { d: 30.0, gx: 10.0, maxWindKmh: 10, name: "THE FINAL", mods: { windMinFrac: 0.5, kpSigma: 0.8 } },
+  // the gentle handshake: small wall, drowsy keeper, no wind
+  { d: 19.0, gx: 0.0, maxWindKmh: 0, name: "THE OPENER", mods: { wallN: 3, kpSigma: 1.2 } },
+  // the angle lesson: keeper cheats toward the far post, near post open
+  { d: 20.0, gx: 3.5, maxWindKmh: 2, name: "OFF CENTRE", mods: { kpBias: -1.2 } },
+  // the keeper duel: razor-sharp cat with extra reach, token wall
+  { d: 21.0, gx: -4.5, maxWindKmh: 3, name: "THE CAT", mods: { kpSigma: 0.45, kpReach: 1.15, wallN: 3 } },
+  // can't go over it: six tall men who never jump
+  { d: 22.0, gx: 6.0, maxWindKmh: 4, name: "THE GREAT WALL", mods: { wallN: 6, wallJumpChance: 0, wallScale: 1.35 } },
+  // the near-post lane is sealed shut: five men parked dead on the line
+  { d: 23.0, gx: -7.0, maxWindKmh: 5, name: "THE SIDE ROAD", mods: { wallN: 5, wallJitter: 0 } },
+  // the wind stage: always strong, and it turns while the ball is up
+  { d: 24.0, gx: 5.0, maxWindKmh: 6, name: "SWIRLING GALE", mods: { windMinFrac: 0.85, windSwirl: 1.5 } },
+  // keeper hugs the near post; the far corner is open but a long carry
+  { d: 25.5, gx: -8.5, maxWindKmh: 7, name: "TIGHT ANGLE", mods: { kpBias: 1.8 } },
+  // the pressure kick: distance does the work, the gauge races
+  { d: 27.0, gx: 9.0, maxWindKmh: 8, name: "LONG RANGE", mods: { gaugeSpeed: 1.35, wallN: 3 } },
+  // a wall twice the size of men: over is impossible, curl around it
+  { d: 28.5, gx: -10.0, maxWindKmh: 9, name: "THE FORTRESS", mods: { wallN: 5, wallScale: 2.0, wallJumpChance: 0, kpSigma: 0.7 } },
+  // everything at once
+  { d: 30.0, gx: 10.0, maxWindKmh: 10, name: "THE FINAL", mods: { windMinFrac: 0.5, kpSigma: 0.8, wallN: 5, wallScale: 1.2, wallJumpChance: 1 } },
 ];
 export const STAGES_PER_LAP = STAGES.length;
 export const LAPS = 5;
