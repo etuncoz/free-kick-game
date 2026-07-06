@@ -158,8 +158,12 @@ describe("the 50-stage marathon (stageSpec)", () => {
     expect(lap4).toBeCloseTo(STAGE_KP_SIGMA * (1 - 0.24), 9);
   });
 
-  it("wind builds to exactly 20 km/h at THE FINAL V; calm stages stay calm", () => {
-    expect(stageSpec(50).maxWindKmh).toBe(20);
+  it("wind peaks at exactly 20 km/h and never beyond; calm stages stay calm", () => {
+    expect(stageSpec(10).maxWindKmh).toBe(20); // THE FINAL reaches the ceiling
+    expect(stageSpec(50).maxWindKmh).toBe(20); // ...and scaling never exceeds it
+    for (let stage = 1; stage <= TOTAL_STAGES; stage++) {
+      expect(stageSpec(stage).maxWindKmh).toBeLessThanOrEqual(20);
+    }
     for (let lap = 0; lap < LAPS; lap++) {
       expect(stageSpec(1 + lap * STAGES_PER_LAP).maxWindKmh).toBe(0); // THE OPENER
     }

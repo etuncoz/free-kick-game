@@ -30,23 +30,23 @@ export const STAGES = [
   // the gentle handshake: small wall, drowsy keeper, no wind
   { d: 19.0, gx: 0.0, maxWindKmh: 0, name: "THE OPENER", mods: { wallN: 3, kpSigma: 1.2 } },
   // the angle lesson: keeper cheats toward the far post, near post open
-  { d: 20.0, gx: 3.5, maxWindKmh: 2, name: "OFF CENTRE", mods: { kpBias: -1.2 } },
+  { d: 20.0, gx: 3.5, maxWindKmh: 4, name: "OFF CENTRE", mods: { kpBias: -1.2 } },
   // the keeper duel: razor-sharp cat with extra reach, token wall
-  { d: 21.0, gx: -4.5, maxWindKmh: 3, name: "THE CAT", mods: { kpSigma: 0.45, kpReach: 1.15, wallN: 3 } },
+  { d: 21.0, gx: -4.5, maxWindKmh: 6, name: "THE CAT", mods: { kpSigma: 0.45, kpReach: 1.15, wallN: 3 } },
   // can't go over it: six tall men who never jump
-  { d: 22.0, gx: 6.0, maxWindKmh: 4, name: "THE GREAT WALL", mods: { wallN: 6, wallJumpChance: 0, wallScale: 1.35 } },
+  { d: 22.0, gx: 6.0, maxWindKmh: 8, name: "THE GREAT WALL", mods: { wallN: 6, wallJumpChance: 0, wallScale: 1.35 } },
   // the near-post lane is sealed shut: five men parked dead on the line
-  { d: 23.0, gx: -7.0, maxWindKmh: 5, name: "THE SIDE ROAD", mods: { wallN: 5, wallJitter: 0 } },
+  { d: 23.0, gx: -7.0, maxWindKmh: 10, name: "THE SIDE ROAD", mods: { wallN: 5, wallJitter: 0 } },
   // the wind stage: always strong, and it turns while the ball is up
-  { d: 24.0, gx: 5.0, maxWindKmh: 6, name: "SWIRLING GALE", mods: { windMinFrac: 0.85, windSwirl: 1.5 } },
+  { d: 24.0, gx: 5.0, maxWindKmh: 12, name: "SWIRLING GALE", mods: { windMinFrac: 0.85, windSwirl: 1.5 } },
   // keeper hugs the near post; the far corner is open but a long carry
-  { d: 25.5, gx: -8.5, maxWindKmh: 7, name: "TIGHT ANGLE", mods: { kpBias: 1.8 } },
+  { d: 25.5, gx: -8.5, maxWindKmh: 14, name: "TIGHT ANGLE", mods: { kpBias: 1.8 } },
   // the pressure kick: distance does the work, the gauge races
-  { d: 27.0, gx: 9.0, maxWindKmh: 8, name: "LONG RANGE", mods: { gaugeSpeed: 1.35, wallN: 3 } },
+  { d: 27.0, gx: 9.0, maxWindKmh: 16, name: "LONG RANGE", mods: { gaugeSpeed: 1.35, wallN: 3 } },
   // a wall twice the size of men: over is impossible, curl around it
-  { d: 28.5, gx: -10.0, maxWindKmh: 9, name: "THE FORTRESS", mods: { wallN: 5, wallScale: 2.0, wallJumpChance: 0, kpSigma: 0.7 } },
+  { d: 28.5, gx: -10.0, maxWindKmh: 18, name: "THE FORTRESS", mods: { wallN: 5, wallScale: 2.0, wallJumpChance: 0, kpSigma: 0.7 } },
   // everything at once
-  { d: 30.0, gx: 10.0, maxWindKmh: 10, name: "THE FINAL", mods: { windMinFrac: 0.5, kpSigma: 0.8, wallN: 5, wallScale: 1.2, wallJumpChance: 1 } },
+  { d: 30.0, gx: 10.0, maxWindKmh: 20, name: "THE FINAL", mods: { windMinFrac: 0.5, kpSigma: 0.8, wallN: 5, wallScale: 1.2, wallJumpChance: 1 } },
 ];
 export const STAGES_PER_LAP = STAGES.length;
 export const LAPS = 5;
@@ -56,13 +56,17 @@ export const TRIES_PER_STAGE = 5;
 
 const LAP_SUFFIX = ["", " II", " III", " IV", " V"];
 
+// hardest wind the game ever asks a player to fight, at any stage
+export const WIND_MAX_KMH = 20;
+
 // The effective spec for any stage of the run. Lap 0 is the authored table
 // verbatim; each later lap revisits the same ten kicks harder: further out
 // (+1.5 m per lap, capped at a still-kickable 35 m), a sharper keeper
 // (-6% prediction noise per lap), and windier - the cap grows 25% of the
-// authored value per lap, landing on exactly 20 km/h at THE FINAL V, and
-// a rising floor (15% of the cap per lap, at most 60%) stops late stages
-// from ever rolling a calm day. Windless archetypes stay windless.
+// authored value per lap but never past WIND_MAX_KMH (the authored table
+// already peaks there at THE FINAL), and a rising floor (15% of the cap
+// per lap, at most 60%) stops late stages from ever rolling a calm day.
+// Windless archetypes stay windless.
 export function stageSpec(stage) {
   const lap = Math.floor((stage - 1) / STAGES_PER_LAP);
   const base = STAGES[(stage - 1) % STAGES_PER_LAP];
@@ -72,7 +76,7 @@ export function stageSpec(stage) {
   return {
     d: Math.min(35, base.d + lap * 1.5),
     gx: base.gx,
-    maxWindKmh: base.maxWindKmh * (1 + 0.25 * lap),
+    maxWindKmh: Math.min(WIND_MAX_KMH, base.maxWindKmh * (1 + 0.25 * lap)),
     name: base.name + LAP_SUFFIX[lap],
     lap,
     mods,
