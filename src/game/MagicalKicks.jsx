@@ -28,10 +28,13 @@ const STAT_VALUE_CLS = "text-xs sm:text-sm font-bold tabular-nums";
 
 const GAUGE_PHASE = { h: "aim1", d: "aim2", s: "aim3" };
 const GAUGES = [
-  { key: "h", label: "1 · HEIGHT" },
-  { key: "d", label: "2 · DIRECTION" },
-  { key: "s", label: "3 · SWERVE" },
+  { key: "h", num: "1", label: "HEIGHT" },
+  { key: "d", num: "2", label: "DIRECTION" },
+  { key: "s", num: "3", label: "SWERVE" },
 ];
+// segmented retro tracks: each gauge is a row of discrete cells; the marker
+// itself still glides continuously so precision reading is unchanged
+const TRACK_CELLS = 20;
 
 export default function MagicalKicks() {
   const canvasRef = useRef(null);
@@ -40,6 +43,7 @@ export default function MagicalKicks() {
   const audioRef = useRef(null);
   const gaugeMarkerRefs = useRef({});
   const gaugeLabelRefs = useRef({});
+  const gaugeBadgeRefs = useRef({});
   if (!audioRef.current) audioRef.current = createAudioController();
 
   const [hud, setHud] = useState({
@@ -213,6 +217,7 @@ export default function MagicalKicks() {
     for (const { key } of GAUGES) {
       const marker = gaugeMarkerRefs.current[key];
       const label = gaugeLabelRefs.current[key];
+      const badge = gaugeBadgeRefs.current[key];
       if (!marker) continue;
       const active = g.phase === GAUGE_PHASE[key];
       let v = null;
@@ -223,9 +228,15 @@ export default function MagicalKicks() {
       } else {
         marker.style.opacity = "1";
         marker.style.left = `${v * 100}%`;
-        marker.style.background = active ? "#fbbf24" : "#60a5fa";
+        marker.style.background = active ? "#fbbf24" : "#e2e8f0";
+        marker.style.boxShadow = active ? "0 0 8px rgba(251,191,36,0.9)" : "0 0 4px rgba(226,232,240,0.6)";
       }
       if (label) label.style.color = active ? "#93c5fd" : "rgba(148,163,184,0.85)";
+      if (badge) {
+        badge.style.background = active ? "#fbbf24" : "#1e293b";
+        badge.style.color = active ? "#0f172a" : "#94a3b8";
+        badge.style.borderColor = active ? "#fbbf24" : "rgba(100,116,139,0.6)";
+      }
     }
   }, []);
 
@@ -595,19 +606,18 @@ export default function MagicalKicks() {
           )}
         </div>
 
-        {/* info + gauge panel - lives below the canvas (always mounted, even
-            outside the aim phases, so the layout never shifts) so it never
-            covers the kicker or the ball, and keeps stats + gauges in one
-            place the player only has to glance at once */}
-        <div className="mt-1.5 sm:mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl overflow-hidden text-slate-200">
+        {/* info panel - lives below the canvas (always mounted, even outside
+            the aim phases, so the layout never shifts) so it never covers the
+            kicker or the ball */}
+        <div className="mt-1.5 sm:mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl text-slate-200">
           {/* below `sm` this wraps into two full-width rows (scores, then
               pitch conditions), each spreading its three stats edge to edge
               instead of crowding six stats onto one 360px line */}
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6 py-2 sm:py-2.5 border-b border-blue-500/20">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6 py-2 sm:py-2.5">
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>SCORE</span>
-                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
+                <span className={`${STAT_VALUE_CLS} text-amber-300`} style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
                 {hud.streak > 1 && (
@@ -645,7 +655,11 @@ export default function MagicalKicks() {
                   {Array.from({ length: TRIES_PER_STAGE }, (_, i) => (
                     <span
                       key={i}
-                      className={`w-2 h-2 rounded-full ${i < hud.triesLeft ? "bg-amber-400" : "bg-slate-700"}`}
+                      className={`w-2 h-2 rounded-full ${
+                        i < hud.triesLeft
+                          ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.85)]"
+                          : "bg-slate-700"
+                      }`}
                     />
                   ))}
                 </span>
@@ -653,7 +667,7 @@ export default function MagicalKicks() {
             </div>
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
-                <span className={STAT_LABEL_CLS}>DISTANCE</span>
+                <span className={STAT_LABEL_CLS}>DIST</span>
                 <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.distance != null ? hud.distance : "—"}
                   {hud.distance != null && <span className="text-slate-500 text-xs">m</span>}
@@ -678,50 +692,74 @@ export default function MagicalKicks() {
               </div>
               <button
                 onClick={toggleMute}
-                className="text-slate-300 hover:text-white transition-colors text-base"
+                className={`transition-colors text-sm ${
+                  hud.muted ? "text-slate-600 line-through" : "text-slate-300 hover:text-white"
+                }`}
                 aria-label={hud.muted ? "Unmute sound" : "Mute sound"}
               >
-                {hud.muted ? "🔇" : "🔊"}
+                ♪
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-6 px-3 sm:px-6 py-2 sm:py-3">
-          {GAUGES.map(({ key, label }) => (
-            <div key={key} className="flex flex-col items-center">
-              <div
-                ref={(el) => (gaugeLabelRefs.current[key] = el)}
-                className="text-[8px] sm:text-[9px] font-bold tracking-wide mb-2 text-slate-400"
-              >
-                {label}
+        </div>
+
+        {/* gauge cards - one per click of the three-click mechanic, each
+            with a numbered badge that lights gold while its gauge runs */}
+        <div className="mt-1.5 sm:mt-2 grid grid-cols-3 gap-1.5 sm:gap-3 text-slate-200">
+          {GAUGES.map(({ key, num, label }) => (
+            <div
+              key={key}
+              className="bg-slate-900/80 border border-blue-500/30 rounded-xl px-2 sm:px-4 py-2 sm:py-3 flex flex-col items-center"
+            >
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <span
+                  ref={(el) => (gaugeBadgeRefs.current[key] = el)}
+                  className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-[7px] sm:text-[8px] border rounded-[3px] bg-slate-800 text-slate-400 border-slate-600/60"
+                  aria-hidden="true"
+                >
+                  {num}
+                </span>
+                <span
+                  ref={(el) => (gaugeLabelRefs.current[key] = el)}
+                  className="text-[8px] sm:text-[9px] font-bold tracking-wide text-slate-400"
+                >
+                  {label}
+                </span>
               </div>
-              <div
-                className="relative w-full h-3.5 rounded bg-slate-800 border border-slate-500/50"
-                style={
-                  key === "h"
-                    ? { background: "linear-gradient(to right, rgba(34,197,94,.35), rgba(239,68,68,.35))" }
-                    : undefined
-                }
-              >
-                {/* the direction gauge sweeps far wider than the goal; this
-                    goal-mouth window is the part of the sweep that actually
-                    hits the frame. It is the same fixed, centred window on
-                    every stage (the physics scales the cone instead). */}
-                {key === "d" && (
-                  <div
-                    className="absolute -top-[5px] bottom-[2px] border-l-2 border-r-2 border-t-2 border-white/90 rounded-t-[3px] bg-emerald-300/25"
-                    style={{
-                      left: `${(0.5 - DIR_GOAL_WINDOW / 2) * 100}%`,
-                      width: `${DIR_GOAL_WINDOW * 100}%`,
-                    }}
-                    aria-hidden="true"
-                  />
-                )}
+              <div className="relative w-full h-3.5">
+                {/* segmented cells. HEIGHT is a fixed green-to-red ramp; the
+                    DIRECTION gold cells are the goal-mouth window - the part
+                    of the (far wider) sweep that actually hits the frame,
+                    the same fixed centred span on every stage (the physics
+                    scales the cone instead). */}
+                <div className="absolute inset-0 flex gap-[2px]" aria-hidden="true">
+                  {Array.from({ length: TRACK_CELLS }, (_, i) => {
+                    if (key === "h") {
+                      const hue = 120 - (i * 120) / (TRACK_CELLS - 1);
+                      return (
+                        <span
+                          key={i}
+                          className="flex-1 rounded-[1px]"
+                          style={{ background: `hsl(${hue} 65% 40%)` }}
+                        />
+                      );
+                    }
+                    const mid = (i + 0.5) / TRACK_CELLS;
+                    const inWindow = key === "d" && Math.abs(mid - 0.5) <= DIR_GOAL_WINDOW / 2;
+                    return (
+                      <span
+                        key={i}
+                        className={`flex-1 rounded-[1px] ${inWindow ? "bg-amber-400/80" : "bg-slate-800"}`}
+                      />
+                    );
+                  })}
+                </div>
                 {key === "s" && (
-                  <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/60 -translate-x-1/2" />
+                  <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/70 -translate-x-1/2" />
                 )}
                 <div
                   ref={(el) => (gaugeMarkerRefs.current[key] = el)}
-                  className="absolute -top-1.5 -bottom-1.5 w-[5px] rounded -translate-x-1/2"
+                  className="absolute -top-1.5 -bottom-1.5 w-[6px] rounded-[1px] -translate-x-1/2"
                   style={{ left: "0%", opacity: 0 }}
                 />
               </div>
@@ -731,7 +769,6 @@ export default function MagicalKicks() {
               </div>
             </div>
           ))}
-          </div>
         </div>
 
         <div className="mt-2 hidden sm:block text-center text-[8px] text-slate-500">

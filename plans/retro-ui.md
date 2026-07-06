@@ -78,22 +78,27 @@ Ad-board text is now all-gold (`#fbbf24`/`#fcd34d`).
 Verified: vitest 58/58; screenshots `p2-aim1/p2-flight/p2-goalflash` in the scratchpad match the SS language (forced GOAL state via `__game` per the HANDOVER pattern).
 
 ## Phase 3: HUD panel restyle
-Status: Not started
+Status: Complete
 
 All in `src/game/MagicalKicks.jsx`.
 
-- [ ] Stats bar: keep the content and responsive wrapping, restyle to the SS: pixel-font labels, "DIST" instead of "DISTANCE", gold value accents, TRIES dots get a soft gold glow (box-shadow), mute toggle becomes a flat ♪ / muted-♪ glyph.
-- [ ] Split the single gauge card into three separate rounded navy cards in a 3-column grid (stacking to one column only if 360px demands it).
-- [ ] Add the numbered square badge to each card ("1"/"2"/"3" + label): gold background with dark number when that gauge is active, dark navy with light number otherwise. Wire it into `updateGaugeDom` alongside the existing label color toggle.
-- [ ] Segmented tracks: render each track as ~24 discrete cells with 1-2px gaps. HEIGHT: green-to-red gradient across the cells (always lit, as in the SS). DIRECTION: dark cells with the `DIR_GOAL_WINDOW` span as gold cells (replaces the bracket overlay). SWERVE: dark cells with a center notch cell.
-- [ ] Marker: keep the smooth-gliding DOM marker on top of the cells; restyle it as a chunky light block with a subtle glow. Keep the active/locked color switch in `updateGaugeDom`.
+- [x] Stats bar: keep the content and responsive wrapping, restyle to the SS: pixel-font labels, "DIST" instead of "DISTANCE", gold value accents, TRIES dots get a soft gold glow (box-shadow), mute toggle becomes a flat ♪ / muted-♪ glyph.
+- [x] Split the single gauge card into three separate rounded navy cards in a 3-column grid (stacking to one column only if 360px demands it).
+- [x] Add the numbered square badge to each card ("1"/"2"/"3" + label): gold background with dark number when that gauge is active, dark navy with light number otherwise. Wire it into `updateGaugeDom` alongside the existing label color toggle.
+- [x] Segmented tracks: render each track as ~24 discrete cells with 1-2px gaps. HEIGHT: green-to-red gradient across the cells (always lit, as in the SS). DIRECTION: dark cells with the `DIR_GOAL_WINDOW` span as gold cells (replaces the bracket overlay). SWERVE: dark cells with a center notch cell.
+- [x] Marker: keep the smooth-gliding DOM marker on top of the cells; restyle it as a chunky light block with a subtle glow. Keep the active/locked color switch in `updateGaugeDom`.
 
 ### Verification Plan
 - `npx vitest run` passes.
 - Headless Chrome screenshots at 1280x800 and 390x844 in each aim phase (drive `__game.phase` and locked values): confirm three cards, badge highlight follows the active gauge, goal-window cells sit centered at 35% width, and the marker glides (two frames apart show it moved).
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-07.
+Stats bar is its own card (the old shared card + `border-b` split into two elements); SCORE value is gold, "DIST" label, TRIES dots glow via an arbitrary Tailwind box-shadow, mute is a ♪ glyph that dims + strikes through when muted.
+Gauges are three `bg-slate-900/80` cards in a 3-column grid at all widths (three cards fit fine at 390px, verified).
+`TRACK_CELLS = 20` flex cells per track (20, not 24, so cells stay >=4px on phones); HEIGHT ramps `hsl(120..0 65% 40%)`, DIRECTION lights the `DIR_GOAL_WINDOW` span as `bg-amber-400/80` cells (the old white bracket overlay is gone), SWERVE keeps the center-notch div.
+Badges are `gaugeBadgeRefs`-driven spans restyled inside `updateGaugeDom` (gold bg + dark number when active); the marker is a 6px block, gold + gold glow while active, light `#e2e8f0` + soft glow when locked.
+Verified: marker sampled two frames apart moved 47.96% -> 63.96% (desktop) and 42% -> 58% (phone), so the glide survived; screenshots `p3-aim1/2/3-{desktop,phone}` in the scratchpad match the SS card layout; vitest 58/58.
 
 ## Phase 4: Overlays and ball button
 Status: Not started
