@@ -1,15 +1,15 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import {
+  advanceOutcome,
   createGameState,
   newScenario as physicsNewScenario,
   step as physicsStep,
   gaugePos,
-  perfectLock,
 } from "./physics";
 import { drawScene, initCrowd, resize as resizeCanvas } from "./render";
 import { createAudioController } from "./audio";
 import { loadBests, saveRunEnd } from "./storage";
-import { DIR_GOAL_WINDOW, PERFECT_BANDS, STAGES, TOTAL_STAGES, TRIES_PER_STAGE } from "./constants";
+import { CUP_EVERY, DIR_GOAL_WINDOW, LAPS, TOTAL_STAGES, TRIES_PER_STAGE, stageSpec } from "./constants";
 
 /* ------------------------------------------------------------------
    FREE KICK LEGEND — a playable HTML prototype of the classic
@@ -45,9 +45,10 @@ export default function MagicalKicks() {
     score: 0,
     best: 0,
     bestStage: 0,
-    cupWon: false,
+    cups: 0, // claimed this run
+    bestCups: 0, // most cups ever claimed in one run
     stage: 1,
-    stageName: STAGES[0].name,
+    stageName: stageSpec(1).name,
     triesLeft: TRIES_PER_STAGE,
     goals: 0,
     streak: 0,
@@ -72,50 +73,68 @@ export default function MagicalKicks() {
     g.score = 0;
     g.goals = 0;
     g.streak = 0;
+    g.cups = 0;
     g.stage = 1;
     g.triesLeft = TRIES_PER_STAGE;
     audioRef.current.sfx("whistle");
     newScenario(g);
-    syncHud({ score: 0, goals: 0, streak: 0 });
+    syncHud({ score: 0, goals: 0, streak: 0, cups: 0 });
   }, [newScenario, syncHud]);
 
   const endRun = useCallback(
     (phase) => {
       const g = G.current;
       g.phase = phase;
-      const bests = saveRunEnd({ stage: g.stage, score: g.score, won: phase === "won" });
+      const bests = saveRunEnd({ stage: g.stage, score: g.score, cups: g.cups });
       g.best = bests.bestScore;
       audioRef.current.sfx("whistle");
       syncHud({
         phase,
         best: bests.bestScore,
         bestStage: bests.bestStage,
-        cupWon: bests.cupWon,
+        bestCups: bests.cups,
+        cups: g.cups,
         msg: null,
       });
     },
     [syncHud]
   );
 
-  // advances past a result: a goal moves to the next stage (or wins the cup
-  // after stage 10); a miss retries the same spot until the tries run out.
-  // triesLeft itself is decremented by physics.js's finishKick, not here.
+  // moves to the next stage, resetting the try budget
+  const nextStage = useCallback(() => {
+    const g = G.current;
+    g.stage += 1;
+    g.triesLeft = TRIES_PER_STAGE;
+    newScenario(g);
+  }, [newScenario]);
+
+  // advances past a result: a goal moves on (via the cup ceremony on every
+  // CUP_EVERY-th stage, or the win screen after the last one); a miss
+  // retries the same spot until the tries run out. triesLeft itself is
+  // decremented by physics.js's finishKick, not here.
   const advance = useCallback(() => {
     const g = G.current;
-    if (g.result === "GOAL") {
-      if (g.stage >= TOTAL_STAGES) {
+    switch (advanceOutcome(g)) {
+      case "won":
+        g.cups += 1; // the stage-50 cup is presented on the win screen
         endRun("won");
-      } else {
-        g.stage += 1;
-        g.triesLeft = TRIES_PER_STAGE;
-        newScenario(g);
-      }
-    } else if (g.triesLeft <= 0) {
-      endRun("gameover");
-    } else {
-      newScenario(g);
+        break;
+      case "cup":
+        g.cups += 1;
+        g.phase = "cup";
+        audioRef.current.sfx("whistle");
+        syncHud({ phase: "cup", cups: g.cups, msg: null });
+        break;
+      case "next":
+        nextStage();
+        break;
+      case "gameover":
+        endRun("gameover");
+        break;
+      default:
+        newScenario(g); // retry
     }
-  }, [endRun, newScenario]);
+  }, [endRun, newScenario, nextStage, syncHud]);
 
   /* --------------------------- interaction ------------------------- */
   const onAction = useCallback(() => {
@@ -150,6 +169,9 @@ export default function MagicalKicks() {
       case "result":
         advance();
         break;
+      case "cup":
+        nextStage();
+        break;
       case "gameover":
       case "won":
         startGame();
@@ -157,7 +179,7 @@ export default function MagicalKicks() {
       default:
         break;
     }
-  }, [advance, startGame, syncHud]);
+  }, [advance, nextStage, startGame, syncHud]);
 
   // driven every animation frame (not through React state) so the marker
   // glides smoothly while a gauge is oscillating, without a 60fps re-render
@@ -170,16 +192,14 @@ export default function MagicalKicks() {
       let v = null;
       if (active) v = gaugePos(g, key);
       else if (g.locked[key] != null) v = key === "h" ? g.locked[key] : (g.locked[key] + 1) / 2;
-      // a lock inside the gold sweet-spot band stays gold instead of blue
-      const lockedPerfect = !active && v != null && perfectLock(key, v);
       if (v == null) {
         marker.style.opacity = "0";
       } else {
         marker.style.opacity = "1";
         marker.style.left = `${v * 100}%`;
-        marker.style.background = active ? "#fbbf24" : lockedPerfect ? "#f59e0b" : "#60a5fa";
+        marker.style.background = active ? "#fbbf24" : "#60a5fa";
       }
-      if (label) label.style.color = active ? "#93c5fd" : lockedPerfect ? "#fbbf24" : "rgba(148,163,184,0.85)";
+      if (label) label.style.color = active ? "#93c5fd" : "rgba(148,163,184,0.85)";
     }
   }, []);
 
@@ -234,21 +254,21 @@ export default function MagicalKicks() {
   useEffect(() => {
     const bests = loadBests();
     G.current.best = bests.bestScore;
-    syncHud({ best: bests.bestScore, bestStage: bests.bestStage, cupWon: bests.cupWon });
+    syncHud({ best: bests.bestScore, bestStage: bests.bestStage, bestCups: bests.cups });
   }, [syncHud]);
 
   /* ------------------------------- ui ------------------------------ */
   // the ball button is the sole trigger for every phase transition; it's
   // only live while there's actually something for onAction to do
-  const ballLive = ["menu", "aim1", "aim2", "aim3", "result", "gameover", "won"].includes(hud.phase);
+  const ballLive = ["menu", "aim1", "aim2", "aim3", "result", "cup", "gameover", "won"].includes(hud.phase);
 
   // persisted-record line shared by the menu / game-over / win overlays
   const bestLine =
     hud.bestStage > 0 ? (
       <div className="mt-3 text-xs text-slate-300 bg-slate-900/70 border border-slate-600/50 rounded-full px-4 py-1.5 font-semibold">
-        {hud.cupWon && (
-          <span role="img" aria-label="Cup winner" className="mr-1.5">
-            🏆
+        {hud.bestCups > 0 && (
+          <span role="img" aria-label={`${hud.bestCups} cups won`} className="mr-1.5">
+            🏆{hud.bestCups > 1 ? `x${hud.bestCups}` : ""}
           </span>
         )}
         Best run: stage <span className="text-amber-300 font-bold">{hud.bestStage}/{TOTAL_STAGES}</span> ·{" "}
@@ -257,12 +277,16 @@ export default function MagicalKicks() {
     ) : null;
 
   // what tapping ⚽ on the result banner will do next; a cleared stage
-  // telegraphs the next stage's name so gimmicks announce themselves
+  // telegraphs the next stage's name so gimmicks announce themselves. Every
+  // CUP_EVERY-th stage hands over to the cup ceremony instead.
   const clearedFinalStage = hud.msg?.tone === "goal" && hud.stage >= TOTAL_STAGES;
-  const nextStageName = hud.stage < TOTAL_STAGES ? STAGES[hud.stage].name : "";
+  const clearedCupStage = hud.msg?.tone === "goal" && hud.stage % CUP_EVERY === 0;
+  const nextStageName = hud.stage < TOTAL_STAGES ? stageSpec(hud.stage + 1).name : "";
   const resultPrompt =
     hud.msg?.tone === "goal"
       ? clearedFinalStage
+        ? "TAP ⚽ TO CLAIM THE FINAL CUP"
+        : clearedCupStage
         ? "TAP ⚽ TO CLAIM THE CUP"
         : `TAP ⚽ FOR STAGE ${hud.stage + 1} · ${nextStageName}`
       : hud.triesLeft > 0
@@ -321,12 +345,14 @@ export default function MagicalKicks() {
                 ? "Lock swerve and strike"
                 : hud.phase === "result"
                 ? hud.msg?.tone === "goal"
-                  ? clearedFinalStage
+                  ? clearedCupStage
                     ? "Claim the cup"
                     : "Start next stage"
                   : hud.triesLeft > 0
                   ? "Retry this stage"
                   : "See final result"
+                : hud.phase === "cup"
+                ? "Continue the run"
                 : hud.phase === "gameover" || hud.phase === "won"
                 ? "Play again"
                 : "Kick off"
@@ -386,8 +412,10 @@ export default function MagicalKicks() {
                 <span className="text-blue-400">LEGEND</span>
               </h1>
               <p className="mt-4 max-w-md text-slate-300 text-sm sm:text-base">
-                A cup run of <b className="text-amber-300">{TOTAL_STAGES} stages</b>, {TRIES_PER_STAGE} tries each: score
-                to advance, miss them all and the run is over. Lock the <b className="text-blue-300">height</b>, the{" "}
+                A cup marathon of <b className="text-amber-300">{TOTAL_STAGES} stages</b>, {TRIES_PER_STAGE} tries
+                each: score to advance, miss them all and the run is over. Every{" "}
+                <b className="text-amber-300">{CUP_EVERY}th stage</b> crowns a cup - claim all {LAPS} to become a
+                legend. Lock the <b className="text-blue-300">height</b>, the{" "}
                 <b className="text-blue-300">direction</b>, then the <b className="text-blue-300">swerve</b> - and mind
                 the wind, the wall and the keeper.
               </p>
@@ -399,7 +427,7 @@ export default function MagicalKicks() {
                 TAP ⚽ TO KICK OFF
               </div>
               <div className="mt-3 text-[11px] text-slate-500">
-                Space or Enter works too · clear stage {TOTAL_STAGES} to win the cup
+                Space or Enter works too · a cup every {CUP_EVERY} stages, {LAPS} cups to win it all
               </div>
             </div>
           )}
@@ -413,15 +441,22 @@ export default function MagicalKicks() {
               </div>
               <div className="text-slate-300 text-sm mt-1 font-semibold">
                 Knocked out on stage {hud.stage}/{TOTAL_STAGES}
+                {hud.cups > 0 && (
+                  <span className="ml-2 text-amber-300">
+                    🏆{hud.cups > 1 ? `x${hud.cups}` : ""} claimed
+                  </span>
+                )}
               </div>
               {bestLine}
               <div className="mt-2 text-sm text-blue-200 font-semibold">
-                {hud.stage >= 9
-                  ? "Agonisingly close to the cup."
-                  : hud.stage >= 6
+                {hud.stage > 40
+                  ? "One cup from immortality."
+                  : hud.stage > 20
                   ? "A proper dead-ball specialist."
-                  : hud.stage >= 3
+                  : hud.stage > 10
                   ? "Keep practising those curlers."
+                  : hud.stage >= 6
+                  ? "A solid first lap."
                   : "The wall sends its regards."}
               </div>
               <div className="mt-6 bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30">
@@ -430,10 +465,13 @@ export default function MagicalKicks() {
             </div>
           )}
 
-          {/* cup won - same full-screen-on-phones treatment as the menu */}
-          {hud.phase === "won" && (
+          {/* cup ceremony - every CUP_EVERY-th stage cleared mid-run; the
+              run continues, so this hands over to the next stage */}
+          {hud.phase === "cup" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
+              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">
+                STAGE {hud.stage} · {hud.stageName} · CLEARED
+              </div>
               <div
                 className="text-7xl sm:text-8xl anim"
                 style={{
@@ -444,13 +482,46 @@ export default function MagicalKicks() {
                 🏆
               </div>
               <h2
+                className="mt-3 text-4xl sm:text-5xl text-amber-300 leading-none"
+                style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+              >
+                CUP SECURED
+              </h2>
+              <div className="mt-3 text-slate-300 text-sm font-semibold">
+                Cup <span className="text-amber-300 font-bold">{hud.cups}</span> of {LAPS} · score{" "}
+                <span className="text-white text-lg font-bold align-middle" style={ARCHIVO}>
+                  {hud.score}
+                </span>
+              </div>
+              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
+                TAP ⚽ FOR STAGE {hud.stage + 1} · {nextStageName}
+              </div>
+            </div>
+          )}
+
+          {/* all cups won - same full-screen-on-phones treatment as the menu */}
+          {hud.phase === "won" && (
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
+              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
+              <div
+                className="text-5xl sm:text-6xl anim tracking-tight"
+                style={{
+                  animation: "floaty 2.4s ease-in-out infinite",
+                  filter: "drop-shadow(0 0 24px rgba(251,191,36,.55))",
+                }}
+                role="img"
+                aria-label={`${LAPS} cups won`}
+              >
+                {"🏆".repeat(LAPS)}
+              </div>
+              <h2
                 className="mt-3 text-4xl sm:text-6xl text-amber-300 leading-none"
                 style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
-                CUP WINNER
+                FREE KICK LEGEND
               </h2>
               <div className="mt-3 text-slate-300 text-sm font-semibold">
-                Final score{" "}
+                All {LAPS} cups claimed · final score{" "}
                 <span className="text-white text-2xl font-bold align-middle ml-1" style={ARCHIVO}>
                   {hud.score}
                 </span>
@@ -468,11 +539,11 @@ export default function MagicalKicks() {
             covers the kicker or the ball, and keeps stats + gauges in one
             place the player only has to glance at once */}
         <div className="mt-1.5 sm:mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl overflow-hidden text-slate-200">
-          {/* below `sm` this wraps into two rows (scores left group, pitch
-              conditions right group) instead of crowding six stats onto one
-              360px line */}
+          {/* below `sm` this wraps into two full-width rows (scores, then
+              pitch conditions), each spreading its three stats edge to edge
+              instead of crowding six stats onto one 360px line */}
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6 py-2 sm:py-2.5 border-b border-blue-500/20">
-            <div className="flex items-center gap-3 sm:gap-6">
+            <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>SCORE</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
@@ -490,6 +561,15 @@ export default function MagicalKicks() {
                   {hud.stage}
                   <span className="text-slate-500 text-xs">/{TOTAL_STAGES}</span>
                 </span>
+                {hud.cups > 0 && (
+                  <span
+                    className="text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded px-1.5 py-0.5"
+                    role="img"
+                    aria-label={`${hud.cups} cups claimed this run`}
+                  >
+                    🏆{hud.cups}
+                  </span>
+                )}
                 <span className="hidden md:inline text-[9px] font-bold tracking-[0.15em] text-amber-300/90">
                   {hud.stageName}
                 </span>
@@ -510,7 +590,7 @@ export default function MagicalKicks() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-3 sm:gap-6">
+            <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>DISTANCE</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
@@ -578,16 +658,6 @@ export default function MagicalKicks() {
                 {key === "s" && (
                   <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/60 -translate-x-1/2" />
                 )}
-                {/* gold sweet-spot bands: lock inside one for a PERFECT;
-                    all three = PURE STRIKE (bonus points + faster ball) */}
-                {(key === "d" ? PERFECT_BANDS.d : [PERFECT_BANDS[key]]).map(([a, b]) => (
-                  <div
-                    key={a}
-                    className="absolute top-0 bottom-0 bg-amber-400/45 border-x border-amber-300/70"
-                    style={{ left: `${a * 100}%`, width: `${(b - a) * 100}%` }}
-                    aria-hidden="true"
-                  />
-                ))}
                 <div
                   ref={(el) => (gaugeMarkerRefs.current[key] = el)}
                   className="absolute -top-1.5 -bottom-1.5 w-[5px] rounded -translate-x-1/2"
