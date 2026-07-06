@@ -2,16 +2,14 @@ import {
   BALL_R,
   CURL_ACCEL,
   DIR_GOAL_WINDOW,
+  CUP_EVERY,
   GOAL_H,
   GOAL_HALF,
-  PERFECT_BANDS,
-  PERFECT_POINTS,
-  PURE_STRIKE_POINTS,
-  PURE_STRIKE_SPEED_BONUS,
-  STAGES,
   STAGE_GAUGE_SPEED,
   STAGE_KP_SIGMA,
+  TOTAL_STAGES,
   TRIES_PER_STAGE,
+  stageSpec,
   WIND_UNIT_KMH,
   clamp,
   easeOut,
@@ -42,6 +40,14 @@ export const KP_SAVE_RADIUS = 0.5;
 // under-read of the curl term would grow with T² and hand far stages an
 // enormous curl edge.
 export const KP_CURL_MISREAD = 1.0;
+// keeper coverage as fractions of the goal size, so corners stay his weak
+// spot however big the goal is. The reach fraction is lower than the old
+// 3.35/4.58 because his outstretched body tip covers ~0.8m beyond the
+// clamp when diving - 0.68 keeps the beatable low-corner strip at ~9% of
+// the goal mouth, matching the 1.25x-goal tuning (verified by sim sweep).
+export const KP_REACH_X = GOAL_HALF * 0.68; // furthest his dive can cover
+const KP_START_CLAMP = GOAL_HALF * 0.48; // how far off centre he starts
+const KP_PREDY_MAX = GOAL_H * 0.75; // highest point he plans to meet
 
 export function createGameState() {
   return {
@@ -52,6 +58,7 @@ export function createGameState() {
     triesLeft: TRIES_PER_STAGE,
     goals: 0,
     streak: 0,
+    cups: 0, // cups claimed this run, one per CUP_EVERY stages cleared
     crowd: null,
     D: 22,
     gx: 0,
@@ -60,14 +67,14 @@ export function createGameState() {
     wallN: 4,
     stageWallN: 4,
     wallHalf: 1.1,
+    wallScale: 1,
+    windSwirl: 0,
     ball: { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 },
     trail: [],
     tryMarks: [], // where earlier tries of this stage ended (ghost X marks)
     locked: { h: null, d: null, s: null },
     gaugeT: 0,
     gaugeSpeed: 1.1,
-    perfects: { h: false, d: false, s: false },
-    pureStrike: false,
     kpX: 0,
     kpStart: 0,
     kpTarget: 0,
@@ -93,18 +100,23 @@ export function gaugePos(g, key) {
   return ping(g.gaugeT * g.gaugeSpeed * mult);
 }
 
-// was this gauge locked inside its gold sweet-spot band? `gaugeV` is the
-// 0..1 gauge position (DIRECTION has a corner band inside each post).
-export function perfectLock(key, gaugeV) {
-  const band = PERFECT_BANDS[key];
-  if (key === "d") return band.some(([a, b]) => gaugeV >= a && gaugeV <= b);
-  return gaugeV >= band[0] && gaugeV <= band[1];
+// what tapping through a result banner should lead to. Kept here (pure,
+// reads only the game object) so the whole 50-stage run flow - cups every
+// CUP_EVERY stages, the final win, retries and knockouts - is unit-testable
+// without the React shell.
+export function advanceOutcome(g) {
+  if (g.result === "GOAL") {
+    if (g.stage >= TOTAL_STAGES) return "won";
+    if (g.stage % CUP_EVERY === 0) return "cup";
+    return "next";
+  }
+  return g.triesLeft > 0 ? "retry" : "gameover";
 }
 
 export function newScenario(g) {
-  // the kick spot is pinned by the stage table - all tries of a stage are
+  // the kick spot is pinned by the stage spec - all tries of a stage are
   // taken from the exact same place; only wind/wall/keeper noise re-roll
-  const st = STAGES[g.stage - 1];
+  const st = stageSpec(g.stage);
   g.D = st.d;
   g.gx = st.gx;
   g.wallZ = Math.min(9.15, g.D * 0.5);
@@ -122,9 +134,11 @@ export function newScenario(g) {
   }
   const n = g.stageWallN;
   const nearPostAim = g.gx - Math.sign(g.gx || 1) * 1.7;
-  g.wallX = (nearPostAim * g.wallZ) / g.D + rnd(-0.3, 0.3);
+  const jitter = mods.wallJitter ?? 0.3;
+  g.wallX = (nearPostAim * g.wallZ) / g.D + rnd(-jitter, jitter);
   g.wallN = n;
-  g.wallHalf = (n * 0.56) / 2;
+  g.wallScale = mods.wallScale ?? 1;
+  g.wallHalf = (n * 0.56 * g.wallScale) / 2;
   g.wallWillJump = Math.random() < (mods.wallJumpChance ?? 0.8);
   g.wallJumpT = 0;
   g.wallJh = 0;
@@ -138,22 +152,27 @@ export function newScenario(g) {
   g.windZ = windMag * Math.cos(windAng);
   g.windAx = g.windX * 3.1;
   g.windAz = g.windZ * 3.1;
-  // keeper
-  g.kpX = g.gx + Math.sign(g.gx || (Math.random() < 0.5 ? 1 : -1)) * 0.45;
-  g.kpX = clamp(g.kpX, g.gx - 2.2, g.gx + 2.2);
+  g.windSwirl = mods.windSwirl ?? 0;
+  // keeper: by default he shades slightly toward the far post; a kpBias
+  // stage pins him a set distance toward the near post (negative = far)
+  const nearDir = -Math.sign(g.gx || (Math.random() < 0.5 ? 1 : -1));
+  g.kpX =
+    mods.kpBias != null
+      ? g.gx + nearDir * mods.kpBias
+      : g.gx - nearDir * 0.45;
+  g.kpX = clamp(g.kpX, g.gx - KP_START_CLAMP, g.gx + KP_START_CLAMP);
   g.kpStart = g.kpX;
   g.kpTarget = g.kpX;
   g.kpAngle = 0;
   g.kpLift = 0;
   g.kpSigma = mods.kpSigma ?? STAGE_KP_SIGMA;
+  g.kpReach = KP_REACH_X * (mods.kpReach ?? 1);
   // ball + gauges
   g.ball = { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 };
   g.trail = [];
   g.locked = { h: null, d: null, s: null };
-  g.perfects = { h: false, d: false, s: false };
-  g.pureStrike = false;
   g.gaugeT = 0;
-  g.gaugeSpeed = STAGE_GAUGE_SPEED;
+  g.gaugeSpeed = mods.gaugeSpeed ?? STAGE_GAUGE_SPEED;
   g.t = 0;
   g.runT = 0;
   g.settleT = 0;
@@ -171,24 +190,18 @@ export function newScenario(g) {
     distance: Math.round(g.D),
     windKmh: Math.round(Math.hypot(g.windX, g.windZ) * WIND_UNIT_KMH),
     // compass bearing for the HUD arrow: 0° blows toward the goal (up on
-    // screen), 90° blows right, 180° back at the kicker
-    windDeg: Math.round((Math.atan2(g.windX, g.windZ) * 180) / Math.PI),
+    // screen), 90° blows right, 180° back at the kicker. Guarded because a
+    // windless roll can produce -0 components and atan2(0, -0) is 180° -
+    // the arrow on a calm day must not point at the kicker's face.
+    windDeg: windMag === 0 ? 0 : Math.round((Math.atan2(g.windX, g.windZ) * 180) / Math.PI),
     msg: null,
   };
 }
 
 export function launch(g) {
   const { h, d, s } = g.locked;
-  // sweet spots: evaluated here (physics owns the verdict) from the locked
-  // gauge positions; a PURE STRIKE (all three) also flies faster
-  g.perfects = {
-    h: perfectLock("h", h),
-    d: perfectLock("d", (d + 1) / 2),
-    s: perfectLock("s", (s + 1) / 2),
-  };
-  g.pureStrike = g.perfects.h && g.perfects.d && g.perfects.s;
   const theta = ((3 + h * 32) * Math.PI) / 180; // elevation
-  const speed = 20.5 + (1 - h) * 3.5 + (g.pureStrike ? PURE_STRIKE_SPEED_BONUS : 0);
+  const speed = 20.5 + (1 - h) * 3.5;
   // DIRECTION sweeps a cone around the goal centre, sized so the goal mouth
   // always covers the same fixed fraction of the gauge (DIR_GOAL_WINDOW) -
   // the gauge picture never changes between stages, while full deflection
@@ -216,8 +229,8 @@ export function launch(g) {
     s * KP_CURL_MISREAD + // he buys the bow and misses the late break back
     gauss * g.kpSigma;
   const predY = Math.max(0.2, g.ball.vy * T - 4.905 * T * T);
-  const reachX = clamp(predX, g.gx - 3.35, g.gx + 3.35);
-  g.kpPredY = clamp(predY, 0.2, 2.3);
+  const reachX = clamp(predX, g.gx - (g.kpReach ?? KP_REACH_X), g.gx + (g.kpReach ?? KP_REACH_X));
+  g.kpPredY = clamp(predY, 0.2, KP_PREDY_MAX);
   // decide the final pose now (the animation in step() just eases into it):
   // a long way to cover means a dive, flatter for low balls; short shuffles
   // stay upright, with a straight jump for high balls.
@@ -269,17 +282,9 @@ function finishKick(g, res, hitX, hitY) {
     const spareTries = g.triesLeft - 1; // this try was used
     // "top bin": the outer ~quarter of the frame, scaled with the goal size
     const corner = Math.abs(hitX - g.gx) > GOAL_HALF * 0.75 || hitY > GOAL_H * 0.78;
-    const perfectCount = (g.perfects.h ? 1 : 0) + (g.perfects.d ? 1 : 0) + (g.perfects.s ? 1 : 0);
-    const bonus =
-      (g.streak - 1) * 25 +
-      spareTries * 25 +
-      (corner ? 50 : 0) +
-      perfectCount * PERFECT_POINTS +
-      (g.pureStrike ? PURE_STRIKE_POINTS : 0);
+    const bonus = (g.streak - 1) * 25 + spareTries * 25 + (corner ? 50 : 0);
     g.lastPoints = 100 + bonus;
-    g.resultDetail = g.pureStrike
-      ? `Pure strike! +${g.lastPoints}`
-      : corner
+    g.resultDetail = corner
       ? `Top bin! +${g.lastPoints}`
       : g.streak > 1
       ? `Streak x${g.streak}  +${g.lastPoints}`
@@ -342,6 +347,16 @@ export function step(g, dt) {
       const prevY = b.y;
       const prevZ = b.z;
       const inFlight = g.phase === "flight";
+      // a swirl stage's wind direction keeps turning while the ball is up
+      if (inFlight && g.windSwirl) {
+        const rot = g.windSwirl * h;
+        const cr = Math.cos(rot);
+        const sr = Math.sin(rot);
+        const ax0 = g.windAx;
+        const az0 = g.windAz;
+        g.windAx = ax0 * cr - az0 * sr;
+        g.windAz = ax0 * sr + az0 * cr;
+      }
       const ax = (inFlight ? g.curlAx || 0 : 0) + (inFlight ? g.windAx : 0);
       const az = inFlight ? g.windAz : 0; // head/tailwind
       b.vx += ax * h - 0.06 * b.vx * h;
@@ -369,7 +384,7 @@ export function step(g, dt) {
         const t = (g.wallZ - prevZ) / (b.z - prevZ);
         const ix = lerp(prevX, b.x, t);
         const iy = lerp(prevY, b.y, t);
-        const top = 1.86 + g.wallJh;
+        const top = 1.86 * (g.wallScale || 1) + g.wallJh;
         const under = g.wallJh > 0.22 && iy < g.wallJh * 0.85;
         if (Math.abs(ix - g.wallX) < g.wallHalf + BALL_R && iy < top && !under) {
           b.z = g.wallZ - 0.05;
