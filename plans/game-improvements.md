@@ -153,7 +153,7 @@ cb02b60 removed the perfect-lock feature end to end; 8f5a403 restored the regula
 The suite grew from 30 to 58 tests, all green; production build clean; mobile and desktop E2E verified in headless Chrome.
 
 ## Deployment Plan
-1. PR from `feature/game-improvements` to `development` is open - Ege reviews and merges it himself (repo rule: PRs only, Ege approves each one).
+1. PR #4 (`feature/game-improvements` -> `development`) is open: https://github.com/etuncoz/free-kick-game/pull/4 - Ege reviews and merges it himself (repo rule: PRs only, Ege approves each one).
 2. After merge, cut the usual release PR `development` -> `main`; merging to `main` triggers the GitHub Pages deploy workflow (it retries once on transient failures per the Pages runbook).
 3. Post-deploy smoke test on the published site: phone-width viewport, confirm the menu says 50 stages with cups, stat rows spread edge to edge, gauges have no gold bands, and stage 1 presents THE OPENER's 3-man wall.
 4. Note for players: existing localStorage records carry over; a legacy cupWon flag reads as 1 cup.
