@@ -133,20 +133,27 @@ Notable details: the crowd sway doubles in speed/amplitude while celebrating; ad
 58 tests pass, build clean. Commit 7d4ce6c. Screenshot/jank review still owed in Phase 8.
 
 ## Phase 8: Full verification + PR to development
-Status: Not started
+Status: Complete
 
-- [ ] `npm test` green, `npm run build` clean
-- [ ] E2E in Chrome (mobile ~449px + desktop): full stage-1 playthrough, cup at stage 10 via dev hook, stat rows evenly spread, FORTRESS wall, gauge panel without gold bands
-- [ ] Ask Ege for permission to push, then push the branch and open the PR to `development` (no agent co-author lines)
+- [x] `npm test` green (58 tests), `npm run build` clean
+- [x] E2E (mobile 449px + desktop 1280px): full stage-1 playthrough, cup at stage 10 via dev hook, stat rows evenly spread, FORTRESS wall, gauge panel without gold bands
+- [x] Push the branch and open the PR to `development` (explicitly requested by Ege; no agent co-author lines)
 
 ### Verification Plan
 - All of the above, recorded in the Phase Summary
 
 ### Phase Summary
-_(write when phase completes)_
+The Chrome extension never connected this session, so E2E ran through headless Chrome driven over raw CDP (scratchpad script using Node's built-in WebSocket; screenshots reviewed by the agent).
+Verified at 449px: menu copy (50 stages, cups), stat rows spanning 411px of the 435px bar with zero right-edge gap on both rows, zero amber band elements, a full kick cycle (aim -> flight -> result OVER), FORTRESS at stage 9 (wallN 5, wallScale 2, no jump, visibly giant numbered wall), CUP SECURED overlay on clearing stage 10 then stage 11, TIGHT ANGLE keeper at kpStart - gx = +1.76, FREE KICK LEGEND five-trophy screen on clearing stage 50. Desktop 1280px: grouped single-row stats, polish visible (numbered players, pentagon ball, ad boards, beams, vignette). No page errors.
+One real bug found and fixed: windless stages could show the wind arrow pointing at the kicker because atan2(0, -0) = 180deg; windDeg is now forced 0 at zero magnitude (commit 69d29e5, with a regression assertion).
 
 ## Final Recap
-_(write when all phases complete: summary of the entire piece of work)_
+All seven improvements landed on `feature/game-improvements` as per-task commits:
+cb02b60 removed the perfect-lock feature end to end; 8f5a403 restored the regulation 7.32 x 2.44 goal with keeper coverage expressed as goal-size fractions (reach fraction 0.68 tuned by sim sweep so the beatable corner strip stays proportional); 671f4a3 distributed the mobile HUD stat rows edge to edge; a261598 turned the run into a 50-stage marathon (5 laps of the 10 archetypes via stageSpec, cup ceremony every 10 stages, LEGEND screen at 50, best-cups persisted in fkl.cups); eee45c9 scaled wind to exactly 20 km/h at stage 50 with a rising per-lap floor; 33176b9 gave every archetype a mechanical personality through six new mods (wallScale, kpReach, kpBias, gaugeSpeed, windSwirl, wallJitter); 7d4ce6c added all five visual polish packs (players, ball, stadium, goal, pitch); 69d29e5 fixed the windless-arrow bug found in E2E.
+The suite grew from 30 to 58 tests, all green; production build clean; mobile and desktop E2E verified in headless Chrome.
 
 ## Deployment Plan
-_(write when all phases complete: step-by-step deployment instructions)_
+1. PR from `feature/game-improvements` to `development` is open - Ege reviews and merges it himself (repo rule: PRs only, Ege approves each one).
+2. After merge, cut the usual release PR `development` -> `main`; merging to `main` triggers the GitHub Pages deploy workflow (it retries once on transient failures per the Pages runbook).
+3. Post-deploy smoke test on the published site: phone-width viewport, confirm the menu says 50 stages with cups, stat rows spread edge to edge, gauges have no gold bands, and stage 1 presents THE OPENER's 3-man wall.
+4. Note for players: existing localStorage records carry over; a legacy cupWon flag reads as 1 cup.
