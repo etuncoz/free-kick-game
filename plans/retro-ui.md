@@ -49,26 +49,33 @@ Verified: vitest 58/58 green; Playwright screenshots (harness `shoot.mjs` in the
 Note: Playwright is installed in the session scratchpad, not the repo; `npx playwright install chromium` browsers are cached machine-wide.
 
 ## Phase 2: Canvas scene flat restyle
-Status: Not started
+Status: Complete
 
 All in `src/game/render.js`.
 
-- [ ] Crowd: replace the random dot field with a grid-ordered dot matrix (rows/columns with slight per-dot color variation) in the SS palette: orange/red/yellow/cyan dots on deep navy. Keep the sway, goal-celebration bounce, camera flashes, and tier walkways.
-- [ ] Sky and floodlights: flat navy sky band (no gradient), flat polygonal floodlight beams with hard edges, simple flat fixture rectangles. Remove the radial glow gradients.
-- [ ] Pitch: flat saturated green, vertical mowing stripes (alternating light/dark bands across x in world space), no vertical gradient. Keep touchlines, goal line, penalty box, arc, and the six-yard box as-is.
-- [ ] Worn dirt at the kick spot: flat ellipse (one or two flat tones), no radial gradient.
-- [ ] Goal frame: chunky uniform white strokes with squared ends (`lineCap: butt`), drop the dark offset pass and the specular highlight pass. Keep the net grid, deformation, ripple, and side netting.
-- [ ] Goal flash: replace the radial-gradient burst with a flat expanding ring plus a short flat starburst; keep the net-backing gold flash fill.
-- [ ] Players (`drawPlayer`): square heads (fillRect, hair as a flat cap rectangle), keep the kick-swing and pose logic. Kicker gets a blue disc behind the "10" like the SS; wall and keeper numbers stay plain.
-- [ ] Ball: flat white circle with a simple dark patch (one flat pentagon or dot), no rim shading. Contact shadow becomes a flat semi-transparent ellipse, no gradient. Keep the swerve-tinted trail but render it as flat squares/rects for the pixel feel.
-- [ ] Remove the match-night vignette at the end of `drawScene`.
+- [x] Crowd: replace the random dot field with a grid-ordered dot matrix (rows/columns with slight per-dot color variation) in the SS palette: orange/red/yellow/cyan dots on deep navy. Keep the sway, goal-celebration bounce, camera flashes, and tier walkways.
+- [x] Sky and floodlights: flat navy sky band (no gradient), flat polygonal floodlight beams with hard edges, simple flat fixture rectangles. Remove the radial glow gradients.
+- [x] Pitch: flat saturated green, vertical mowing stripes (alternating light/dark bands across x in world space), no vertical gradient. Keep touchlines, goal line, penalty box, arc, and the six-yard box as-is.
+- [x] Worn dirt at the kick spot: flat ellipse (one or two flat tones), no radial gradient.
+- [x] Goal frame: chunky uniform white strokes with squared ends (`lineCap: butt`), drop the dark offset pass and the specular highlight pass. Keep the net grid, deformation, ripple, and side netting.
+- [x] Goal flash: replace the radial-gradient burst with a flat expanding ring plus a short flat starburst; keep the net-backing gold flash fill.
+- [x] Players (`drawPlayer`): square heads (fillRect, hair as a flat cap rectangle), keep the kick-swing and pose logic. Kicker gets a blue disc behind the "10" like the SS; wall and keeper numbers stay plain.
+- [x] Ball: flat white circle with a simple dark patch (one flat pentagon or dot), no rim shading. Contact shadow becomes a flat semi-transparent ellipse, no gradient. Keep the swerve-tinted trail but render it as flat squares/rects for the pixel feel.
+- [x] Remove the match-night vignette at the end of `drawScene`.
 
 ### Verification Plan
 - `npx vitest run` passes.
 - Headless Chrome screenshots at 1280x800: menu backdrop, aim phase, and (driving `__game` state) a scored result with the flash visible. Visually confirm against the SS: grid crowd, vertical stripes, chunky goal, square-head sprites, no gradients or vignette.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-06.
+Every gradient left `render.js` (`createLinearGradient`/`createRadialGradient` grep is clean): flat navy sky, flat `#15803d` pitch with world-x vertical mowing bands, two-tone flat dirt ellipse, flat double-polygon floodlight beams, flat ball shadow, no vignette.
+Crowd is a 110x22 normalized grid of two-pixel people (warm head pixel over a `crowdColor(cc)` body: gold/orange/red/blue/dim-navy) with the old sway kept on x and a hop added while celebrating.
+Goal frame is one chunky miter-joined white path (`0.11 * s`, min 3px); the goal flash is now white + gold flat rings plus an eight-ray starburst.
+Sprites got square heads with a flat hair cap; `drawPlayer` gained an `o.badge` disc option used by the kicker, whose kit switched to the SS look (white shirt, blue "10" disc, blue socks).
+Ball keeps one rotating flat pentagon; trail renders as flat squares.
+Ad-board text is now all-gold (`#fbbf24`/`#fcd34d`).
+Verified: vitest 58/58; screenshots `p2-aim1/p2-flight/p2-goalflash` in the scratchpad match the SS language (forced GOAL state via `__game` per the HANDOVER pattern).
 
 ## Phase 3: HUD panel restyle
 Status: Not started
