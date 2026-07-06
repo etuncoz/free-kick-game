@@ -135,8 +135,8 @@ The four commits on `feature/retro-ui`:
 Verification tooling: Playwright (installed in the session scratchpad, chromium cached machine-wide) driving the dev server; outcomes forced via `window.__game` ball teleports; stage jumps via the dev-only admin selector.
 
 ## Deployment Plan
-1. Push `feature/retro-ui` to origin (needs Ege's go-ahead; never push unasked).
-2. Open a PR into `development` titled "Retro UI: Twilight Pixel restyle". Note in the description that it branches off `feature/admin-level-panel`, so that PR must merge first (or this PR will show its commits until rebased).
+1. Push `feature/retro-ui` to origin (needs Ege's go-ahead; never push unasked). Done 2026-07-07.
+2. Open a PR into `development` titled "Retro UI: Twilight Pixel restyle". Done: https://github.com/etuncoz/free-kick-game/pull/7 (description notes that `feature/admin-level-panel` must merge first).
 3. Ege reviews and merges (he approves every PR himself).
 4. Deploy follows the existing GitHub Pages runbook (`plans/github-pages-deploy.md`): merge `development` into `main` via PR; the Pages workflow ships `dist/` (it has a built-in retry for the transient first-attempt failure).
 5. Post-deploy smoke check on the published URL: menu renders in Press Start 2P, crowd is the dot-matrix grid, gauges are segmented cards.
