@@ -465,11 +465,11 @@ export default function MagicalKicks() {
             covers the kicker or the ball, and keeps stats + gauges in one
             place the player only has to glance at once */}
         <div className="mt-1.5 sm:mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl overflow-hidden text-slate-200">
-          {/* below `sm` this wraps into two rows (scores left group, pitch
-              conditions right group) instead of crowding six stats onto one
-              360px line */}
+          {/* below `sm` this wraps into two full-width rows (scores, then
+              pitch conditions), each spreading its three stats edge to edge
+              instead of crowding six stats onto one 360px line */}
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6 py-2 sm:py-2.5 border-b border-blue-500/20">
-            <div className="flex items-center gap-3 sm:gap-6">
+            <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>SCORE</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>
@@ -507,7 +507,7 @@ export default function MagicalKicks() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-3 sm:gap-6">
+            <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>DISTANCE</span>
                 <span className={STAT_VALUE_CLS} style={ARCHIVO}>

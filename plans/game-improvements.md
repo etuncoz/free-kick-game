@@ -26,18 +26,21 @@ Verified: 30 tests pass; the only remaining perfect/pure grep hits are unrelated
 Commit cb02b60.
 
 ## Phase 2: Regulation goal + keeper reach scaling (task 2)
-Status: Not started
+Status: Complete
 
-- [ ] Set `GOAL_HALF = 3.66`, `GOAL_H = 2.44` in constants.js (regulation 7.32 x 2.44)
-- [ ] Express keeper reach relative to the goal size in physics.js so corners stay his weak spot: dive reach clamp (was ±3.35), initial position clamp (was ±2.2), and predY clamp (was 2.3) all scale by the goal ratio
-- [ ] Commit
+- [x] Set `GOAL_HALF = 3.66`, `GOAL_H = 2.44` in constants.js (regulation 7.32 x 2.44)
+- [x] Express keeper reach relative to the goal size in physics.js so corners stay his weak spot: dive reach clamp (was ±3.35), initial position clamp (was ±2.2), and predY clamp (was 2.3) all scale by the goal ratio
+- [x] Commit
 
 ### Verification Plan
 - `npm test` passes (aiming tests derive from GOAL_HALF so they self-adjust)
 - Corner-aim shot beats a correctly-guessing keeper in a scripted sim; a central shot is still saved
 
 ### Phase Summary
-_(write when phase completes)_
+GOAL_HALF 3.66 / GOAL_H 2.44. Keeper coverage now derives from goal size in physics.js: KP_REACH_X = 0.68 * GOAL_HALF, start clamp 0.48 * GOAL_HALF, predY cap 0.75 * GOAL_H.
+Important discovery: the diving keeper's body TIP extends ~0.8m beyond the reach clamp, so a naive 0.73 fraction left only a 4% beatable corner strip; a vitest sim sweep found 0.68 restores the ~9% proportion of the old goal (boundary ~3.35m, goal edge 3.61m).
+The late-curl misread test was re-aimed to gx - 1.2 (keeper stays standing for both predictions) because dive/clamp interactions at the old -3.0 aim no longer produce an exact misread delta.
+Added permanent regression test: corner aim GOAL vs exact-guess keeper, -3.0 SAVED. 31 tests pass. Commit 8f5a403.
 
 ## Phase 3: Mobile HUD stat row distribution (task 3)
 Status: Not started
