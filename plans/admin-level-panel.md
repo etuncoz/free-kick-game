@@ -83,5 +83,6 @@ Verified by vitest (58/58), production-bundle stripping grep, a 16-assertion raw
 Nothing player-facing ships: the panel is dev-only and the production bundle is unchanged in behaviour (grep-verified stripped).
 
 1. Push `feature/admin-level-panel` and open a PR into `development`; merge when CI is green (Ege approves - PR-only workflow).
+   Done: https://github.com/etuncoz/free-kick-game/pull/6 (also carries the corner-line/jersey-number fixes and the Cascadia Code font swap).
 2. No deploy PR to `main` is needed for this feature alone, since it adds nothing to production. It will reach `main` incidentally with the next regular deploy PR from `development`.
 3. To use the panel: `npm run dev`, open the local URL, pick a stage from the ADMIN · STAGE dropdown top-right. Records are not written for that run until you start a fresh one from the menu.
