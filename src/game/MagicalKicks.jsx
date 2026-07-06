@@ -20,7 +20,7 @@ import { CUP_EVERY, DIR_GOAL_WINDOW, LAPS, TOTAL_STAGES, TRIES_PER_STAGE, stageS
    physics.js, canvas drawing lives in render.js, sound in audio.js.
 ------------------------------------------------------------------- */
 
-const ARCHIVO = { fontFamily: "'Archivo Black', sans-serif" };
+const DISPLAY_FONT = { fontFamily: "'Cascadia Code', monospace", fontWeight: 700 };
 const STAT_LABEL_CLS = "text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold";
 const STAT_VALUE_CLS = "text-base sm:text-lg font-bold tabular-nums";
 
@@ -76,6 +76,7 @@ export default function MagicalKicks() {
     g.cups = 0;
     g.stage = 1;
     g.triesLeft = TRIES_PER_STAGE;
+    g.testRun = false; // a fresh run from the menu counts for records again
     audioRef.current.sfx("whistle");
     newScenario(g);
     syncHud({ score: 0, goals: 0, streak: 0, cups: 0 });
@@ -85,7 +86,10 @@ export default function MagicalKicks() {
     (phase) => {
       const g = G.current;
       g.phase = phase;
-      const bests = saveRunEnd({ stage: g.stage, score: g.score, cups: g.cups });
+      // a test run (dev-panel stage jump) never touches the persisted records
+      const bests = g.testRun
+        ? loadBests()
+        : saveRunEnd({ stage: g.stage, score: g.score, cups: g.cups });
       g.best = bests.bestScore;
       audioRef.current.sfx("whistle");
       syncHud({
@@ -107,6 +111,26 @@ export default function MagicalKicks() {
     g.triesLeft = TRIES_PER_STAGE;
     newScenario(g);
   }, [newScenario]);
+
+  // dev-only (admin panel): restart the run at a chosen stage for testing -
+  // fresh try budget, zeroed score, and the run is marked as a test run so
+  // it never writes records. The full try budget makes newScenario re-roll
+  // the wall and clear the ghost try marks, exactly like a fresh stage.
+  const jumpToStage = useCallback(
+    (stage) => {
+      const g = G.current;
+      g.testRun = true;
+      g.score = 0;
+      g.goals = 0;
+      g.streak = 0;
+      g.cups = 0;
+      g.stage = stage;
+      g.triesLeft = TRIES_PER_STAGE;
+      newScenario(g);
+      syncHud({ score: 0, goals: 0, streak: 0, cups: 0 });
+    },
+    [newScenario, syncHud]
+  );
 
   // advances past a result: a goal moves on (via the cup ceremony on every
   // CUP_EVERY-th stage, or the win screen after the last one); a miss
@@ -235,6 +259,9 @@ export default function MagicalKicks() {
     raf = requestAnimationFrame(frame);
 
     const key = (e) => {
+      // the dev-only stage select is keyboard-operable with Space/Enter -
+      // those presses must not also fire a game action
+      if (e.target && e.target.tagName === "SELECT") return;
       if (e.code === "Space" || e.code === "Enter") {
         e.preventDefault();
         onAction();
@@ -304,7 +331,7 @@ export default function MagicalKicks() {
     <div
       className="min-h-dvh w-full bg-slate-950 flex flex-col items-center justify-center p-1.5 sm:p-3 select-none"
       style={{
-        fontFamily: "'Space Grotesk', ui-sans-serif, system-ui",
+        fontFamily: "'Cascadia Code', ui-monospace, monospace",
         // one tap = one action, never a double-tap zoom, on the rapid
         // HEIGHT/DIRECTION/SWERVE triple tap
         touchAction: "manipulation",
@@ -383,7 +410,7 @@ export default function MagicalKicks() {
                 )}
                 <div
                   className="text-4xl sm:text-6xl text-center"
-                  style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+                  style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
                 >
                   {hud.msg.title}
                 </div>
@@ -406,7 +433,7 @@ export default function MagicalKicks() {
           {hud.phase === "menu" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
-              <h1 className="text-4xl sm:text-6xl text-white leading-none" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+              <h1 className="text-4xl sm:text-6xl text-white leading-none" style={DISPLAY_FONT}>
                 FREE KICK
                 <br />
                 <span className="text-blue-400">LEGEND</span>
@@ -436,7 +463,7 @@ export default function MagicalKicks() {
           {hud.phase === "gameover" && (
             <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
               <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">CUP RUN OVER</div>
-              <div className="text-5xl sm:text-6xl text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+              <div className="text-5xl sm:text-6xl text-white" style={DISPLAY_FONT}>
                 {hud.score}
               </div>
               <div className="text-slate-300 text-sm mt-1 font-semibold">
@@ -483,13 +510,13 @@ export default function MagicalKicks() {
               </div>
               <h2
                 className="mt-3 text-4xl sm:text-5xl text-amber-300 leading-none"
-                style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+                style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 CUP SECURED
               </h2>
               <div className="mt-3 text-slate-300 text-sm font-semibold">
                 Cup <span className="text-amber-300 font-bold">{hud.cups}</span> of {LAPS} · score{" "}
-                <span className="text-white text-lg font-bold align-middle" style={ARCHIVO}>
+                <span className="text-white text-lg font-bold align-middle" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
@@ -516,13 +543,13 @@ export default function MagicalKicks() {
               </div>
               <h2
                 className="mt-3 text-4xl sm:text-6xl text-amber-300 leading-none"
-                style={{ fontFamily: "'Archivo Black', sans-serif", textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
+                style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 FREE KICK LEGEND
               </h2>
               <div className="mt-3 text-slate-300 text-sm font-semibold">
                 All {LAPS} cups claimed · final score{" "}
-                <span className="text-white text-2xl font-bold align-middle ml-1" style={ARCHIVO}>
+                <span className="text-white text-2xl font-bold align-middle ml-1" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
@@ -530,6 +557,38 @@ export default function MagicalKicks() {
               <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
                 TAP ⚽ TO PLAY AGAIN
               </div>
+            </div>
+          )}
+
+          {/* dev-only admin panel: jump the run to any stage for testing.
+              Gated on import.meta.env.DEV so it is dead-code-eliminated from
+              production builds (same pattern as window.__game). Rendered
+              last at z-40 so it stays clickable above every overlay, and it
+              swallows pointerdown so opening it never fires a game action.
+              Below `sm` it pins to the viewport corner (like the phone
+              overlays do) so it never covers the overlay titles or the
+              stadium - the wrapper corner is mid-screen on a phone. */}
+          {import.meta.env.DEV && (
+            <div
+              className="fixed sm:absolute top-2 right-2 z-40 flex items-center gap-1.5 bg-slate-950/80 border border-amber-400/40 rounded-lg px-2 py-1"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <span className="text-[9px] tracking-[0.2em] text-amber-400 font-bold">ADMIN · STAGE</span>
+              <select
+                value={hud.stage}
+                onChange={(e) => {
+                  jumpToStage(Number(e.target.value));
+                  e.target.blur();
+                }}
+                className="bg-slate-900 text-slate-200 text-xs font-semibold border border-slate-600/60 rounded px-1 py-0.5 cursor-pointer"
+                aria-label="Admin: jump to a stage (test run, records are not saved)"
+              >
+                {Array.from({ length: TOTAL_STAGES }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n} · {stageSpec(n).name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
@@ -546,7 +605,7 @@ export default function MagicalKicks() {
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>SCORE</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
                 {hud.streak > 1 && (
@@ -557,7 +616,7 @@ export default function MagicalKicks() {
               </div>
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>STAGE</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.stage}
                   <span className="text-slate-500 text-xs">/{TOTAL_STAGES}</span>
                 </span>
@@ -593,14 +652,14 @@ export default function MagicalKicks() {
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>DISTANCE</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.distance != null ? hud.distance : "—"}
                   {hud.distance != null && <span className="text-slate-500 text-xs">m</span>}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>WIND</span>
-                <span className={STAT_VALUE_CLS} style={ARCHIVO}>
+                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {/* compass arrow: up = blowing toward the goal, right =
                       blowing right across the pitch, down = into your face */}
                   <span

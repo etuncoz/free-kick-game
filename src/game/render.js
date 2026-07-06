@@ -116,10 +116,13 @@ function drawPlayer(ctx, feet, s, o) {
     // crossed over chest (wall pose)
     ctx.fillRect(-w * 0.6, -h * 0.8, w * 1.2, h * 0.14);
   }
-  // jersey number, once the figure is big enough on screen to carry it
-  if (o.number != null && s > 24) {
+  // jersey number, once the figure is big enough on screen to carry it -
+  // the threshold must admit phone-sized canvases (wall s ≈ 14, kicker
+  // s ≈ 23 at 360px wide), where the DPR backing store keeps the 6px
+  // minimum font legible
+  if (o.number != null && s > 10) {
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = `bold ${Math.max(6, Math.round(h * 0.16))}px 'Archivo Black', sans-serif`;
+    ctx.font = `bold ${Math.max(6, Math.round(h * 0.16))}px 'Cascadia Code', monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(String(o.number), 0, -h * 0.71);
@@ -216,7 +219,10 @@ export function drawScene(ctx, g) {
   line(tlNearR, tlFarR);
 
   // pitch lines
-  line(P(g.gx - 26, 0, g.D), P(g.gx + 26, 0, g.D)); // goal line
+  // goal line - spans the full pitch width so it always meets the
+  // touchlines at the corners (a goal-centred span ended visibly short of
+  // the corner once far stages brought more of the pitch into frame)
+  line(P(-PITCH_HALF_WIDTH, 0, g.D), P(PITCH_HALF_WIDTH, 0, g.D));
   // penalty box
   const bz = g.D - PENALTY_BOX_DEPTH;
   if (bz > 1) {
@@ -297,7 +303,7 @@ export function drawScene(ctx, g) {
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `bold ${Math.round(boardH * 0.5)}px 'Archivo Black', sans-serif`;
+  ctx.font = `bold ${Math.round(boardH * 0.5)}px 'Cascadia Code', monospace`;
   const panelW = W / ads.length;
   for (let i = 0; i < ads.length; i++) {
     ctx.fillStyle = i % 2 ? "#0e1c42" : "#0a1533";
