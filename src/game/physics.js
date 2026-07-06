@@ -59,6 +59,9 @@ export function createGameState() {
     goals: 0,
     streak: 0,
     cups: 0, // cups claimed this run, one per CUP_EVERY stages cleared
+    // set when the dev-only admin panel jumps the run to a chosen stage; a
+    // test run never writes best-stage/best-score/cup records at run end
+    testRun: false,
     crowd: null,
     D: 22,
     gx: 0,

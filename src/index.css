@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* Press Start 2P is single-weight: never let the browser synthesize a fake
+   bold/italic over the pixel glyphs */
+@layer base {
+  html {
+    font-synthesis: none;
+  }
+}
