@@ -71,7 +71,9 @@ describe("newScenario (stage mode)", () => {
 
   it("is windless on stage 1", () => {
     const g = createGameState();
-    newScenario(g);
+    const patch = newScenario(g);
+    // -0 wind components must not flip the HUD arrow (atan2(0,-0) is 180°)
+    expect(patch.windDeg).toBe(0);
     // == comparisons: the magnitude is 0 but a negative angle cosine can
     // produce -0, which Object.is (toBe) would flakily reject
     expect(g.windX == 0).toBe(true);

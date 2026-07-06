@@ -114,21 +114,23 @@ windSwirl rotates the wind acceleration vector per substep (direction of rotatio
 Ten personality tests added, including a FORTRESS collision test (a 2.5m crosser clears stage 1's wall but is WALLed by the 3.72m fortress) and a 30-roll SIDE ROAD jitter-free placement check. 58 tests pass. Commit 33176b9.
 
 ## Phase 7: Visual polish, all five items (task 6)
-Status: Not started
+Status: Complete (screenshot review deferred to Phase 8)
 
-- [ ] Players: articulated kick swing on the kicker (backswing leg via pose), jersey numbers on wall players, keeper gloves + spread dive pose
-- [ ] Ball: black pentagon panel pattern rotating with spin, swerve-tinted curved trail, radial-gradient soft shadow
-- [ ] Stadium: crowd sway animation, camera flashes during goal celebrations, advertising boards at the stand foot, floodlight beams with haze
-- [ ] Goal: specular highlight pass on posts/crossbar, diagonal side-net threads, net sway with the wind
-- [ ] Pitch: worn dirt patch at the kick spot, penalty arc, subtle match-night vignette
-- [ ] Commit
+- [x] Players: articulated kick swing on the kicker (backswing leg via pose), jersey numbers on wall players, keeper gloves + spread dive pose
+- [x] Ball: black pentagon panel pattern rotating with spin, swerve-tinted curved trail, radial-gradient soft shadow
+- [x] Stadium: crowd sway animation, camera flashes during goal celebrations, advertising boards at the stand foot, floodlight beams with haze
+- [x] Goal: specular highlight pass on posts/crossbar, depth threads on the side nets, net sway with the wind
+- [x] Pitch: worn dirt patch at the kick spot, penalty arc, subtle match-night vignette
+- [x] Commit
 
 ### Verification Plan
 - `npm test` still passes (render is presentation-only)
 - Browser screenshot review at mobile + desktop widths; no visible frame jank in a ~30s session
 
 ### Phase Summary
-_(write when phase completes)_
+All five packs landed in render.js only (drawPlayer gained kickSwing/number/gloves options; drawScene gained an ambient clock `t`).
+Notable details: the crowd sway doubles in speed/amplitude while celebrating; ad board copy is FREE KICK LEGEND / TOP BINS ONLY / CUP RUN '26 / BEND IT LIKE YOU; the trail tint keys off g.locked.s (amber right, cyan left, white straight); the net sway term scales with height so the mesh top billows more; the kicker's swing profile is wind-up over runP 0-0.75 then a whip through to follow-through at 1.
+58 tests pass, build clean. Commit 7d4ce6c. Screenshot/jank review still owed in Phase 8.
 
 ## Phase 8: Full verification + PR to development
 Status: Not started

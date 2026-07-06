@@ -190,8 +190,10 @@ export function newScenario(g) {
     distance: Math.round(g.D),
     windKmh: Math.round(Math.hypot(g.windX, g.windZ) * WIND_UNIT_KMH),
     // compass bearing for the HUD arrow: 0° blows toward the goal (up on
-    // screen), 90° blows right, 180° back at the kicker
-    windDeg: Math.round((Math.atan2(g.windX, g.windZ) * 180) / Math.PI),
+    // screen), 90° blows right, 180° back at the kicker. Guarded because a
+    // windless roll can produce -0 components and atan2(0, -0) is 180° -
+    // the arrow on a calm day must not point at the kicker's face.
+    windDeg: windMag === 0 ? 0 : Math.round((Math.atan2(g.windX, g.windZ) * 180) / Math.PI),
     msg: null,
   };
 }
