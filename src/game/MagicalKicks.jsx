@@ -76,6 +76,7 @@ export default function MagicalKicks() {
     g.cups = 0;
     g.stage = 1;
     g.triesLeft = TRIES_PER_STAGE;
+    g.testRun = false; // a fresh run from the menu counts for records again
     audioRef.current.sfx("whistle");
     newScenario(g);
     syncHud({ score: 0, goals: 0, streak: 0, cups: 0 });
@@ -85,7 +86,10 @@ export default function MagicalKicks() {
     (phase) => {
       const g = G.current;
       g.phase = phase;
-      const bests = saveRunEnd({ stage: g.stage, score: g.score, cups: g.cups });
+      // a test run (dev-panel stage jump) never touches the persisted records
+      const bests = g.testRun
+        ? loadBests()
+        : saveRunEnd({ stage: g.stage, score: g.score, cups: g.cups });
       g.best = bests.bestScore;
       audioRef.current.sfx("whistle");
       syncHud({
@@ -107,6 +111,26 @@ export default function MagicalKicks() {
     g.triesLeft = TRIES_PER_STAGE;
     newScenario(g);
   }, [newScenario]);
+
+  // dev-only (admin panel): restart the run at a chosen stage for testing -
+  // fresh try budget, zeroed score, and the run is marked as a test run so
+  // it never writes records. The full try budget makes newScenario re-roll
+  // the wall and clear the ghost try marks, exactly like a fresh stage.
+  const jumpToStage = useCallback(
+    (stage) => {
+      const g = G.current;
+      g.testRun = true;
+      g.score = 0;
+      g.goals = 0;
+      g.streak = 0;
+      g.cups = 0;
+      g.stage = stage;
+      g.triesLeft = TRIES_PER_STAGE;
+      newScenario(g);
+      syncHud({ score: 0, goals: 0, streak: 0, cups: 0 });
+    },
+    [newScenario, syncHud]
+  );
 
   // advances past a result: a goal moves on (via the cup ceremony on every
   // CUP_EVERY-th stage, or the win screen after the last one); a miss
@@ -235,6 +259,9 @@ export default function MagicalKicks() {
     raf = requestAnimationFrame(frame);
 
     const key = (e) => {
+      // the dev-only stage select is keyboard-operable with Space/Enter -
+      // those presses must not also fire a game action
+      if (e.target && e.target.tagName === "SELECT") return;
       if (e.code === "Space" || e.code === "Enter") {
         e.preventDefault();
         onAction();
@@ -530,6 +557,38 @@ export default function MagicalKicks() {
               <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
                 TAP ⚽ TO PLAY AGAIN
               </div>
+            </div>
+          )}
+
+          {/* dev-only admin panel: jump the run to any stage for testing.
+              Gated on import.meta.env.DEV so it is dead-code-eliminated from
+              production builds (same pattern as window.__game). Rendered
+              last at z-40 so it stays clickable above every overlay, and it
+              swallows pointerdown so opening it never fires a game action.
+              Below `sm` it pins to the viewport corner (like the phone
+              overlays do) so it never covers the overlay titles or the
+              stadium - the wrapper corner is mid-screen on a phone. */}
+          {import.meta.env.DEV && (
+            <div
+              className="fixed sm:absolute top-2 right-2 z-40 flex items-center gap-1.5 bg-slate-950/80 border border-amber-400/40 rounded-lg px-2 py-1"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <span className="text-[9px] tracking-[0.2em] text-amber-400 font-bold">ADMIN · STAGE</span>
+              <select
+                value={hud.stage}
+                onChange={(e) => {
+                  jumpToStage(Number(e.target.value));
+                  e.target.blur();
+                }}
+                className="bg-slate-900 text-slate-200 text-xs font-semibold border border-slate-600/60 rounded px-1 py-0.5 cursor-pointer"
+                aria-label="Admin: jump to a stage (test run, records are not saved)"
+              >
+                {Array.from({ length: TOTAL_STAGES }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n} · {stageSpec(n).name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>

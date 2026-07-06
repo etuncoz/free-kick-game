@@ -63,6 +63,10 @@ Notes:
 - Run records (best stage reached, best score, cup won) persist across reloads via localStorage (`src/game/storage.js`).
   There is deliberately no mid-run resume: reloading starts a fresh run at stage 1.
 - A dev-only debug hook exists: `window.__game` is set to the live mutable game state, but only when `import.meta.env.DEV` is true. It's stripped from production builds (verified by grepping the built bundle for `__game`). Useful for forcing specific game states (e.g. `window.__game.result = "GOAL"`) when testing visuals without waiting on stochastic physics — see the Playwright scripts pattern used this session, described in §10.
+- A dev-only **admin stage selector** (labelled "ADMIN · STAGE", top-right of the pitch view; pinned to the viewport corner on phones) jumps the run to any of the 50 stages for testing.
+  It is gated on `import.meta.env.DEV` exactly like `window.__game`, so production builds strip it entirely (verified the same way, by grepping the built bundle).
+  Jumping loads the chosen stage fresh (full try budget, score/streak/cups zeroed, any in-progress kick aborted) and marks the run as a test run (`g.testRun`), which suppresses the localStorage record writes at run end.
+  Starting a new run from the menu clears the mark, so honest runs count again.
 
 ### Branching, CI & deployment
 
