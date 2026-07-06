@@ -334,8 +334,11 @@ describe("late-curl keeper misread", () => {
     try {
       const g = createGameState();
       newScenario(g);
+      // arrival point chosen so both the straight and the curl-misread
+      // predictions keep the keeper standing (no dive, no reach clamp) -
+      // the poses must match for the kpTarget delta to equal the misread
       const cone = Math.atan(GOAL_HALF / g.D) / DIR_GOAL_WINDOW;
-      const d = Math.atan(-3.0 / g.D) / cone; // arrival at gx - 3.0
+      const d = Math.atan(-1.2 / g.D) / cone; // arrival at gx - 1.2
       g.locked = { h: 0.35, d, s };
       launch(g);
       g.wallHalf = -99;
@@ -353,7 +356,7 @@ describe("late-curl keeper misread", () => {
     expect(curled.kpTarget - straight.kpTarget).toBeCloseTo(KP_CURL_MISREAD, 5);
   });
 
-  it("the same corner aim is saved straight but beats the keeper curled", () => {
+  it("the same aim is saved straight but beats the keeper curled", () => {
     const results = [0, 1].map((s) => {
       const g = launched(s);
       for (let i = 0; i < 400 && !g.result; i++) step(g, 1 / 60);
@@ -392,6 +395,30 @@ describe("keeper save geometry", () => {
     expect(poseCase({ ...dive, ballAt: -0.5, ballY: 1.0 })).toBe("GOAL");
     // over his near-horizontal body: goal
     expect(poseCase({ ...dive, ballAt: 0.9, ballY: 1.6 })).toBe("GOAL");
+  });
+
+  it("a true corner shot beats even a correctly-guessing keeper", () => {
+    // regulation goal, reach scaled with it: the outer strip of the goal
+    // mouth must stay beatable when the keeper's prediction is exact
+    const spy = vi.spyOn(Math, "random").mockReturnValue(0.5); // gauss = 0
+    try {
+      const resultFor = (aim) => {
+        const g = createGameState();
+        newScenario(g);
+        const cone = Math.atan(GOAL_HALF / g.D) / DIR_GOAL_WINDOW;
+        g.locked = { h: 0.35, d: Math.atan(aim / g.D) / cone, s: 0 };
+        launch(g);
+        g.wallHalf = -99;
+        g.windAx = 0;
+        g.windAz = 0;
+        for (let i = 0; i < 400 && !g.result; i++) step(g, 1 / 60);
+        return g.result;
+      };
+      expect(resultFor(-(GOAL_HALF - 0.2))).toBe("GOAL"); // low corner
+      expect(resultFor(-3.0)).toBe("SAVED"); // inside his stretched reach
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("a correctly-predicted dive still saves: the body lands on the ball", () => {

@@ -9,19 +9,21 @@ When all phases are done, fill in **Final Recap** and **Deployment Plan**.
 Key constraints: never add the agent as commit co-author; no em dash anywhere; PR goes to `development`; never push without permission; `npm test` runs vitest.
 
 ## Phase 1: Remove the perfect-lock feature (task 1)
-Status: Not started
+Status: Complete
 
-- [ ] Delete `PERFECT_BANDS`, `PERFECT_POINTS`, `PURE_STRIKE_POINTS`, `PURE_STRIKE_SPEED_BONUS` from `src/game/constants.js`
-- [ ] Delete `perfectLock()` from `src/game/physics.js`; drop `g.perfects` / `g.pureStrike` state, the launch speed bonus, and the perfect/pure-strike scoring + `resultDetail` branches
-- [ ] Remove the gold band overlays, `lockedPerfect` marker/label colouring, and `PERFECT_BANDS` import from `src/game/MagicalKicks.jsx`
-- [ ] Remove the perfect-lock test suite and perfect-related assertions from `src/game/physics.test.js`
-- [ ] Commit
+- [x] Delete `PERFECT_BANDS`, `PERFECT_POINTS`, `PURE_STRIKE_POINTS`, `PURE_STRIKE_SPEED_BONUS` from `src/game/constants.js`
+- [x] Delete `perfectLock()` from `src/game/physics.js`; drop `g.perfects` / `g.pureStrike` state, the launch speed bonus, and the perfect/pure-strike scoring + `resultDetail` branches
+- [x] Remove the gold band overlays, `lockedPerfect` marker/label colouring, and `PERFECT_BANDS` import from `src/game/MagicalKicks.jsx`
+- [x] Remove the perfect-lock test suite and perfect-related assertions from `src/game/physics.test.js`
+- [x] Commit
 
 ### Verification Plan
 - `npm test` passes; a case-insensitive grep for `perfect|pure` in `src/` returns nothing
 
 ### Phase Summary
-_(write when phase completes)_
+Removed the whole system in one pass: constants (PERFECT_BANDS + three bonus constants), physics (perfectLock, g.perfects, g.pureStrike, launch speed bonus, scoring and resultDetail branches), JSX (gold band overlays, lockedPerfect colouring, imports), and the entire "perfect locks and pure strike" test suite.
+Verified: 30 tests pass; the only remaining perfect/pure grep hits are unrelated prose comments.
+Commit cb02b60.
 
 ## Phase 2: Regulation goal + keeper reach scaling (task 2)
 Status: Not started

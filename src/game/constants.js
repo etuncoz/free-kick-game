@@ -1,8 +1,8 @@
-// goal frame, 1.25x regulation size (7.32 x 2.44 m) - a bit oversized so
-// scoring is easier; the keeper's reach was NOT scaled with it, so the
-// enlarged corners are his weak spot by design
-export const GOAL_HALF = 4.58; // metres, half the goal mouth
-export const GOAL_H = 3.05;
+// goal frame, regulation size (7.32 x 2.44 m). The keeper's coverage is
+// expressed as fractions of these in physics.js so the corners stay his
+// designed weak spot at any goal size.
+export const GOAL_HALF = 3.66; // metres, half the goal mouth
+export const GOAL_H = 2.44;
 export const BALL_R = 0.11;
 export const PENALTY_BOX_DEPTH = 16.5; // metres, box edge from the goal line
 

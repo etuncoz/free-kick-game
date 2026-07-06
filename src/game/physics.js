@@ -38,6 +38,14 @@ export const KP_SAVE_RADIUS = 0.5;
 // under-read of the curl term would grow with T² and hand far stages an
 // enormous curl edge.
 export const KP_CURL_MISREAD = 1.0;
+// keeper coverage as fractions of the goal size, so corners stay his weak
+// spot however big the goal is. The reach fraction is lower than the old
+// 3.35/4.58 because his outstretched body tip covers ~0.8m beyond the
+// clamp when diving - 0.68 keeps the beatable low-corner strip at ~9% of
+// the goal mouth, matching the 1.25x-goal tuning (verified by sim sweep).
+export const KP_REACH_X = GOAL_HALF * 0.68; // furthest his dive can cover
+const KP_START_CLAMP = GOAL_HALF * 0.48; // how far off centre he starts
+const KP_PREDY_MAX = GOAL_H * 0.75; // highest point he plans to meet
 
 export function createGameState() {
   return {
@@ -126,7 +134,7 @@ export function newScenario(g) {
   g.windAz = g.windZ * 3.1;
   // keeper
   g.kpX = g.gx + Math.sign(g.gx || (Math.random() < 0.5 ? 1 : -1)) * 0.45;
-  g.kpX = clamp(g.kpX, g.gx - 2.2, g.gx + 2.2);
+  g.kpX = clamp(g.kpX, g.gx - KP_START_CLAMP, g.gx + KP_START_CLAMP);
   g.kpStart = g.kpX;
   g.kpTarget = g.kpX;
   g.kpAngle = 0;
@@ -192,8 +200,8 @@ export function launch(g) {
     s * KP_CURL_MISREAD + // he buys the bow and misses the late break back
     gauss * g.kpSigma;
   const predY = Math.max(0.2, g.ball.vy * T - 4.905 * T * T);
-  const reachX = clamp(predX, g.gx - 3.35, g.gx + 3.35);
-  g.kpPredY = clamp(predY, 0.2, 2.3);
+  const reachX = clamp(predX, g.gx - KP_REACH_X, g.gx + KP_REACH_X);
+  g.kpPredY = clamp(predY, 0.2, KP_PREDY_MAX);
   // decide the final pose now (the animation in step() just eases into it):
   // a long way to cover means a dive, flatter for low balls; short shuffles
   // stay upright, with a straight jump for high balls.
