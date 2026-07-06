@@ -20,16 +20,21 @@ import { CUP_EVERY, DIR_GOAL_WINDOW, LAPS, TOTAL_STAGES, TRIES_PER_STAGE, stageS
    physics.js, canvas drawing lives in render.js, sound in audio.js.
 ------------------------------------------------------------------- */
 
-const DISPLAY_FONT = { fontFamily: "'Cascadia Code', monospace", fontWeight: 700 };
-const STAT_LABEL_CLS = "text-[9px] sm:text-[10px] tracking-[0.2em] text-blue-300/80 font-semibold";
-const STAT_VALUE_CLS = "text-base sm:text-lg font-bold tabular-nums";
+// Press Start 2P ships a single weight; font-synthesis is disabled globally
+// (index.css) so bold utilities never smear the pixel glyphs
+const DISPLAY_FONT = { fontFamily: "'Press Start 2P', monospace" };
+const STAT_LABEL_CLS = "text-[7px] sm:text-[8px] tracking-[0.15em] text-blue-300/80 font-semibold";
+const STAT_VALUE_CLS = "text-xs sm:text-sm font-bold tabular-nums";
 
 const GAUGE_PHASE = { h: "aim1", d: "aim2", s: "aim3" };
 const GAUGES = [
-  { key: "h", label: "1 · HEIGHT" },
-  { key: "d", label: "2 · DIRECTION" },
-  { key: "s", label: "3 · SWERVE" },
+  { key: "h", num: "1", label: "HEIGHT" },
+  { key: "d", num: "2", label: "DIRECTION" },
+  { key: "s", num: "3", label: "SWERVE" },
 ];
+// segmented retro tracks: each gauge is a row of discrete cells; the marker
+// itself still glides continuously so precision reading is unchanged
+const TRACK_CELLS = 20;
 
 export default function MagicalKicks() {
   const canvasRef = useRef(null);
@@ -38,6 +43,7 @@ export default function MagicalKicks() {
   const audioRef = useRef(null);
   const gaugeMarkerRefs = useRef({});
   const gaugeLabelRefs = useRef({});
+  const gaugeBadgeRefs = useRef({});
   if (!audioRef.current) audioRef.current = createAudioController();
 
   const [hud, setHud] = useState({
@@ -211,6 +217,7 @@ export default function MagicalKicks() {
     for (const { key } of GAUGES) {
       const marker = gaugeMarkerRefs.current[key];
       const label = gaugeLabelRefs.current[key];
+      const badge = gaugeBadgeRefs.current[key];
       if (!marker) continue;
       const active = g.phase === GAUGE_PHASE[key];
       let v = null;
@@ -221,9 +228,15 @@ export default function MagicalKicks() {
       } else {
         marker.style.opacity = "1";
         marker.style.left = `${v * 100}%`;
-        marker.style.background = active ? "#fbbf24" : "#60a5fa";
+        marker.style.background = active ? "#fbbf24" : "#e2e8f0";
+        marker.style.boxShadow = active ? "0 0 8px rgba(251,191,36,0.9)" : "0 0 4px rgba(226,232,240,0.6)";
       }
       if (label) label.style.color = active ? "#93c5fd" : "rgba(148,163,184,0.85)";
+      if (badge) {
+        badge.style.background = active ? "#fbbf24" : "#1e293b";
+        badge.style.color = active ? "#0f172a" : "#94a3b8";
+        badge.style.borderColor = active ? "#fbbf24" : "rgba(100,116,139,0.6)";
+      }
     }
   }, []);
 
@@ -292,7 +305,7 @@ export default function MagicalKicks() {
   // persisted-record line shared by the menu / game-over / win overlays
   const bestLine =
     hud.bestStage > 0 ? (
-      <div className="mt-3 text-xs text-slate-300 bg-slate-900/70 border border-slate-600/50 rounded-full px-4 py-1.5 font-semibold">
+      <div className="mt-3 text-[8px] sm:text-[9px] leading-relaxed text-slate-300 bg-slate-900/70 border border-slate-600/50 rounded-full px-4 py-1.5 font-semibold">
         {hud.bestCups > 0 && (
           <span role="img" aria-label={`${hud.bestCups} cups won`} className="mr-1.5">
             🏆{hud.bestCups > 1 ? `x${hud.bestCups}` : ""}
@@ -331,7 +344,7 @@ export default function MagicalKicks() {
     <div
       className="min-h-dvh w-full bg-slate-950 flex flex-col items-center justify-center p-1.5 sm:p-3 select-none"
       style={{
-        fontFamily: "'Cascadia Code', ui-monospace, monospace",
+        fontFamily: "'Press Start 2P', ui-monospace, monospace",
         // one tap = one action, never a double-tap zoom, on the rapid
         // HEIGHT/DIRECTION/SWERVE triple tap
         touchAction: "manipulation",
@@ -384,7 +397,7 @@ export default function MagicalKicks() {
                 ? "Play again"
                 : "Kick off"
             }
-            className={`anim absolute z-20 bottom-3 right-3 sm:bottom-4 sm:right-4 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-blue-400 to-blue-600 shadow-lg shadow-blue-900/60 ring-2 ring-white/40 flex items-center justify-center text-3xl sm:text-4xl transition-all duration-200 ${
+            className={`anim absolute z-20 bottom-3 right-3 sm:bottom-4 sm:right-4 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-blue-500 shadow-lg shadow-blue-900/60 ring-2 ring-white/50 flex items-center justify-center text-3xl sm:text-4xl transition-all duration-200 ${
               ballLive ? "opacity-100 hover:scale-105 active:scale-95" : "opacity-0 pointer-events-none"
             }`}
             style={{ animation: ballLive ? "floaty 2s ease-in-out infinite" : "none" }}
@@ -396,32 +409,32 @@ export default function MagicalKicks() {
           {hud.msg && hud.phase === "result" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <div
-                className={`anim px-8 py-3 rounded-2xl border-2 backdrop-blur-sm ${
+                className={`anim px-8 py-3 rounded-xl border-2 bg-slate-950/90 ${
                   hud.msg.tone === "goal"
-                    ? "bg-emerald-500/20 border-emerald-300 text-emerald-200"
-                    : "bg-rose-500/15 border-rose-300/70 text-rose-200"
+                    ? "border-emerald-300 text-emerald-200"
+                    : "border-rose-300/80 text-rose-200"
                 }`}
                 style={{ animation: "popIn .35s ease-out both" }}
               >
                 {hud.msg.tone === "goal" && (
-                  <div className="text-center text-[10px] tracking-[0.4em] font-bold opacity-90 mb-1">
+                  <div className="text-center text-[8px] tracking-[0.25em] font-bold opacity-90 mb-1.5">
                     STAGE {hud.stage} · {hud.stageName} · CLEAR
                   </div>
                 )}
                 <div
-                  className="text-4xl sm:text-6xl text-center"
+                  className="text-2xl sm:text-4xl text-center"
                   style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
                 >
                   {hud.msg.title}
                 </div>
-                <div className="text-center text-sm sm:text-base font-semibold mt-1 opacity-90">{hud.msg.sub}</div>
+                <div className="text-center text-[10px] sm:text-xs leading-relaxed font-semibold mt-2 opacity-90">{hud.msg.sub}</div>
                 {hud.msg.tone === "miss" && hud.triesLeft > 0 && (
-                  <div className="text-center text-[10px] tracking-[0.4em] font-bold opacity-90 mt-1.5">
+                  <div className="text-center text-[8px] tracking-[0.25em] font-bold opacity-90 mt-2">
                     {hud.triesLeft} {hud.triesLeft === 1 ? "TRY" : "TRIES"} LEFT
                   </div>
                 )}
               </div>
-              <div className="mt-4 text-slate-200/80 text-xs font-semibold tracking-widest bg-slate-950/60 rounded-full px-4 py-1.5">
+              <div className="mt-4 text-slate-200/80 text-[8px] sm:text-[9px] font-semibold tracking-widest bg-slate-950/60 rounded-full px-4 py-1.5">
                 {resultPrompt}
               </div>
             </div>
@@ -431,14 +444,14 @@ export default function MagicalKicks() {
               it), confined to the pitch view from `sm` up. Still inside the
               wrapper, so tapping anywhere starts the game. */}
           {hud.phase === "menu" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
-              <h1 className="text-4xl sm:text-6xl text-white leading-none" style={DISPLAY_FONT}>
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/85 sm:bg-slate-950/70 flex flex-col items-center justify-center text-center px-6 py-8">
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">A TRIBUTE TO THE CLASSIC</div>
+              <h1 className="text-2xl sm:text-4xl text-white leading-snug" style={DISPLAY_FONT}>
                 FREE KICK
                 <br />
                 <span className="text-blue-400">LEGEND</span>
               </h1>
-              <p className="mt-4 max-w-md text-slate-300 text-sm sm:text-base">
+              <p className="mt-4 max-w-md text-slate-300 text-[9px] sm:text-[11px] leading-relaxed">
                 A cup marathon of <b className="text-amber-300">{TOTAL_STAGES} stages</b>, {TRIES_PER_STAGE} tries
                 each: score to advance, miss them all and the run is over. Every{" "}
                 <b className="text-amber-300">{CUP_EVERY}th stage</b> crowns a cup - claim all {LAPS} to become a
@@ -448,12 +461,12 @@ export default function MagicalKicks() {
               </p>
               {bestLine}
               <div
-                className="mt-6 anim bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30"
+                className="mt-6 anim bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-xs sm:text-sm shadow-lg shadow-blue-500/30"
                 style={{ animation: "floaty 2.4s ease-in-out infinite" }}
               >
                 TAP ⚽ TO KICK OFF
               </div>
-              <div className="mt-3 text-[11px] text-slate-500">
+              <div className="mt-3 text-[8px] leading-relaxed text-slate-500">
                 Space or Enter works too · a cup every {CUP_EVERY} stages, {LAPS} cups to win it all
               </div>
             </div>
@@ -461,12 +474,12 @@ export default function MagicalKicks() {
 
           {/* game over - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "gameover" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">CUP RUN OVER</div>
-              <div className="text-5xl sm:text-6xl text-white" style={DISPLAY_FONT}>
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/80 flex flex-col items-center justify-center text-center px-6 py-8">
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">CUP RUN OVER</div>
+              <div className="text-3xl sm:text-4xl text-white" style={DISPLAY_FONT}>
                 {hud.score}
               </div>
-              <div className="text-slate-300 text-sm mt-1 font-semibold">
+              <div className="text-slate-300 text-[9px] sm:text-[10px] leading-relaxed mt-2 font-semibold">
                 Knocked out on stage {hud.stage}/{TOTAL_STAGES}
                 {hud.cups > 0 && (
                   <span className="ml-2 text-amber-300">
@@ -475,7 +488,7 @@ export default function MagicalKicks() {
                 )}
               </div>
               {bestLine}
-              <div className="mt-2 text-sm text-blue-200 font-semibold">
+              <div className="mt-2 text-[9px] sm:text-[10px] leading-relaxed text-blue-200 font-semibold">
                 {hud.stage > 40
                   ? "One cup from immortality."
                   : hud.stage > 20
@@ -486,7 +499,7 @@ export default function MagicalKicks() {
                   ? "A solid first lap."
                   : "The wall sends its regards."}
               </div>
-              <div className="mt-6 bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-blue-500/30">
+              <div className="mt-6 bg-blue-500 hover:bg-blue-400 transition-colors text-white font-bold rounded-full px-8 py-3 text-xs sm:text-sm shadow-lg shadow-blue-500/30">
                 TAP ⚽ TO PLAY AGAIN
               </div>
             </div>
@@ -495,8 +508,8 @@ export default function MagicalKicks() {
           {/* cup ceremony - every CUP_EVERY-th stage cleared mid-run; the
               run continues, so this hands over to the next stage */}
           {hud.phase === "cup" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 flex flex-col items-center justify-center text-center px-6 py-8">
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">
                 STAGE {hud.stage} · {hud.stageName} · CLEARED
               </div>
               <div
@@ -509,18 +522,18 @@ export default function MagicalKicks() {
                 🏆
               </div>
               <h2
-                className="mt-3 text-4xl sm:text-5xl text-amber-300 leading-none"
+                className="mt-3 text-2xl sm:text-3xl text-amber-300 leading-snug"
                 style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 CUP SECURED
               </h2>
-              <div className="mt-3 text-slate-300 text-sm font-semibold">
+              <div className="mt-3 text-slate-300 text-[9px] sm:text-[10px] leading-relaxed font-semibold">
                 Cup <span className="text-amber-300 font-bold">{hud.cups}</span> of {LAPS} · score{" "}
-                <span className="text-white text-lg font-bold align-middle" style={DISPLAY_FONT}>
+                <span className="text-white text-sm font-bold align-middle" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
-              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
+              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-[10px] sm:text-xs shadow-lg shadow-amber-500/40">
                 TAP ⚽ FOR STAGE {hud.stage + 1} · {nextStageName}
               </div>
             </div>
@@ -528,8 +541,8 @@ export default function MagicalKicks() {
 
           {/* all cups won - same full-screen-on-phones treatment as the menu */}
           {hud.phase === "won" && (
-            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center text-center px-6 py-8">
-              <div className="text-[10px] tracking-[0.5em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
+            <div className="fixed sm:absolute inset-0 z-30 sm:z-auto overflow-y-auto bg-slate-950/90 sm:bg-slate-950/85 flex flex-col items-center justify-center text-center px-6 py-8">
+              <div className="text-[8px] tracking-[0.3em] text-amber-400 mb-2">ALL {TOTAL_STAGES} STAGES CLEARED</div>
               <div
                 className="text-5xl sm:text-6xl anim tracking-tight"
                 style={{
@@ -542,19 +555,19 @@ export default function MagicalKicks() {
                 {"🏆".repeat(LAPS)}
               </div>
               <h2
-                className="mt-3 text-4xl sm:text-6xl text-amber-300 leading-none"
+                className="mt-3 text-lg sm:text-3xl text-amber-300 leading-snug"
                 style={{ ...DISPLAY_FONT, textShadow: "0 4px 24px rgba(0,0,0,.6)" }}
               >
                 FREE KICK LEGEND
               </h2>
-              <div className="mt-3 text-slate-300 text-sm font-semibold">
+              <div className="mt-3 text-slate-300 text-[9px] sm:text-[10px] leading-relaxed font-semibold">
                 All {LAPS} cups claimed · final score{" "}
-                <span className="text-white text-2xl font-bold align-middle ml-1" style={DISPLAY_FONT}>
+                <span className="text-white text-lg font-bold align-middle ml-1" style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
               </div>
               {bestLine}
-              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-lg shadow-lg shadow-amber-500/40">
+              <div className="mt-6 anim bg-amber-500 hover:bg-amber-400 transition-colors text-slate-950 font-bold rounded-full px-8 py-3 text-xs sm:text-sm shadow-lg shadow-amber-500/40">
                 TAP ⚽ TO PLAY AGAIN
               </div>
             </div>
@@ -593,19 +606,18 @@ export default function MagicalKicks() {
           )}
         </div>
 
-        {/* info + gauge panel - lives below the canvas (always mounted, even
-            outside the aim phases, so the layout never shifts) so it never
-            covers the kicker or the ball, and keeps stats + gauges in one
-            place the player only has to glance at once */}
-        <div className="mt-1.5 sm:mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl overflow-hidden text-slate-200">
+        {/* info panel - lives below the canvas (always mounted, even outside
+            the aim phases, so the layout never shifts) so it never covers the
+            kicker or the ball */}
+        <div className="mt-1.5 sm:mt-3 bg-slate-900/80 border border-blue-500/30 rounded-xl text-slate-200">
           {/* below `sm` this wraps into two full-width rows (scores, then
               pitch conditions), each spreading its three stats edge to edge
               instead of crowding six stats onto one 360px line */}
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6 py-2 sm:py-2.5 border-b border-blue-500/20">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6 py-2 sm:py-2.5">
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
                 <span className={STAT_LABEL_CLS}>SCORE</span>
-                <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
+                <span className={`${STAT_VALUE_CLS} text-amber-300`} style={DISPLAY_FONT}>
                   {hud.score}
                 </span>
                 {hud.streak > 1 && (
@@ -643,7 +655,11 @@ export default function MagicalKicks() {
                   {Array.from({ length: TRIES_PER_STAGE }, (_, i) => (
                     <span
                       key={i}
-                      className={`w-2 h-2 rounded-full ${i < hud.triesLeft ? "bg-amber-400" : "bg-slate-700"}`}
+                      className={`w-2 h-2 rounded-full ${
+                        i < hud.triesLeft
+                          ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.85)]"
+                          : "bg-slate-700"
+                      }`}
                     />
                   ))}
                 </span>
@@ -651,7 +667,7 @@ export default function MagicalKicks() {
             </div>
             <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-3 sm:gap-6">
               <div className="flex items-center gap-1.5">
-                <span className={STAT_LABEL_CLS}>DISTANCE</span>
+                <span className={STAT_LABEL_CLS}>DIST</span>
                 <span className={STAT_VALUE_CLS} style={DISPLAY_FONT}>
                   {hud.distance != null ? hud.distance : "—"}
                   {hud.distance != null && <span className="text-slate-500 text-xs">m</span>}
@@ -676,63 +692,86 @@ export default function MagicalKicks() {
               </div>
               <button
                 onClick={toggleMute}
-                className="text-slate-300 hover:text-white transition-colors text-base"
+                className={`transition-colors text-sm ${
+                  hud.muted ? "text-slate-600 line-through" : "text-slate-300 hover:text-white"
+                }`}
                 aria-label={hud.muted ? "Unmute sound" : "Mute sound"}
               >
-                {hud.muted ? "🔇" : "🔊"}
+                ♪
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-6 px-3 sm:px-6 py-2 sm:py-3">
-          {GAUGES.map(({ key, label }) => (
-            <div key={key} className="flex flex-col items-center">
-              <div
-                ref={(el) => (gaugeLabelRefs.current[key] = el)}
-                className="text-[10px] sm:text-xs font-bold tracking-wide mb-2 text-slate-400"
-              >
-                {label}
+        </div>
+
+        {/* gauge cards - one per click of the three-click mechanic, each
+            with a numbered badge that lights gold while its gauge runs */}
+        <div className="mt-1.5 sm:mt-2 grid grid-cols-3 gap-1.5 sm:gap-3 text-slate-200">
+          {GAUGES.map(({ key, num, label }) => (
+            <div
+              key={key}
+              className="bg-slate-900/80 border border-blue-500/30 rounded-xl px-2 sm:px-4 py-2 sm:py-3 flex flex-col items-center"
+            >
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <span
+                  ref={(el) => (gaugeBadgeRefs.current[key] = el)}
+                  className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-[7px] sm:text-[8px] border rounded-[3px] bg-slate-800 text-slate-400 border-slate-600/60"
+                  aria-hidden="true"
+                >
+                  {num}
+                </span>
+                <span
+                  ref={(el) => (gaugeLabelRefs.current[key] = el)}
+                  className="text-[8px] sm:text-[9px] font-bold tracking-wide text-slate-400"
+                >
+                  {label}
+                </span>
               </div>
-              <div
-                className="relative w-full h-3.5 rounded bg-slate-800 border border-slate-500/50"
-                style={
-                  key === "h"
-                    ? { background: "linear-gradient(to right, rgba(34,197,94,.35), rgba(239,68,68,.35))" }
-                    : undefined
-                }
-              >
-                {/* the direction gauge sweeps far wider than the goal; this
-                    goal-mouth window is the part of the sweep that actually
-                    hits the frame. It is the same fixed, centred window on
-                    every stage (the physics scales the cone instead). */}
-                {key === "d" && (
-                  <div
-                    className="absolute -top-[5px] bottom-[2px] border-l-2 border-r-2 border-t-2 border-white/90 rounded-t-[3px] bg-emerald-300/25"
-                    style={{
-                      left: `${(0.5 - DIR_GOAL_WINDOW / 2) * 100}%`,
-                      width: `${DIR_GOAL_WINDOW * 100}%`,
-                    }}
-                    aria-hidden="true"
-                  />
-                )}
+              <div className="relative w-full h-3.5">
+                {/* segmented cells. HEIGHT is a fixed green-to-red ramp; the
+                    DIRECTION gold cells are the goal-mouth window - the part
+                    of the (far wider) sweep that actually hits the frame,
+                    the same fixed centred span on every stage (the physics
+                    scales the cone instead). */}
+                <div className="absolute inset-0 flex gap-[2px]" aria-hidden="true">
+                  {Array.from({ length: TRACK_CELLS }, (_, i) => {
+                    if (key === "h") {
+                      const hue = 120 - (i * 120) / (TRACK_CELLS - 1);
+                      return (
+                        <span
+                          key={i}
+                          className="flex-1 rounded-[1px]"
+                          style={{ background: `hsl(${hue} 65% 40%)` }}
+                        />
+                      );
+                    }
+                    const mid = (i + 0.5) / TRACK_CELLS;
+                    const inWindow = key === "d" && Math.abs(mid - 0.5) <= DIR_GOAL_WINDOW / 2;
+                    return (
+                      <span
+                        key={i}
+                        className={`flex-1 rounded-[1px] ${inWindow ? "bg-amber-400/80" : "bg-slate-800"}`}
+                      />
+                    );
+                  })}
+                </div>
                 {key === "s" && (
-                  <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/60 -translate-x-1/2" />
+                  <div className="absolute left-1/2 -top-1 -bottom-1 w-[2px] bg-slate-400/70 -translate-x-1/2" />
                 )}
                 <div
                   ref={(el) => (gaugeMarkerRefs.current[key] = el)}
-                  className="absolute -top-1.5 -bottom-1.5 w-[5px] rounded -translate-x-1/2"
+                  className="absolute -top-1.5 -bottom-1.5 w-[6px] rounded-[1px] -translate-x-1/2"
                   style={{ left: "0%", opacity: 0 }}
                 />
               </div>
-              <div className="w-full flex justify-between mt-1 text-[9px] sm:text-[10px] font-semibold text-slate-500">
+              <div className="w-full flex justify-between mt-1 text-[7px] sm:text-[8px] font-semibold text-slate-500">
                 <span>{key === "h" ? "LOW" : key === "s" ? "↷ LEFT" : "LEFT"}</span>
                 <span>{key === "h" ? "HIGH" : key === "s" ? "RIGHT ↶" : "RIGHT"}</span>
               </div>
             </div>
           ))}
-          </div>
         </div>
 
-        <div className="mt-2 hidden sm:block text-center text-[11px] text-slate-500">
+        <div className="mt-2 hidden sm:block text-center text-[8px] text-slate-500">
           Prototype of the three-click free kick mechanic · React + Canvas · tuned for touch and mouse
         </div>
       </div>
